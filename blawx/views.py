@@ -199,32 +199,7 @@ def ruleDocImportView(request):
         return HttpResponseNotAllowed("POST")
 
 
-# @authentication_classes([SessionAuthentication])
-# @permission_classes([IsAuthenticatedOrReadOnly])
-# def exampleLoadView(request, example_name):
-#     if request.user.has_perm("blawx.add_ruledoc"):
-#         # Load that file
-#         example = open(
-#             "/app/blawx/blawx/static/blawx/examples/" + example_name + ".yaml"
-#         )
-#         # Do the stuff in import.
-#         new_objects = serializers.deserialize("yaml", example.read())
-#         new_object_list = list(new_objects)
-#         # Get the RuleDoc, remove the PK, save it, and get the PK of the saved version.
-#         new_object_list[0].object.pk = None
-#         new_object_list[0].object.owner = request.user
-#         new_object_list[0].object.save()
-#         # Use the PK of the saved version to save the workspaces and tests
-#         for o in new_object_list[1:]:
-#             o.object.pk = None
-#             o.object.ruledoc = new_object_list[0].object
-#             o.object.save()
-#         # Now trigger the post-save for the RuleDoc object to set permissions on sub-objects.
-#         new_object_list[0].object.save()
-#         # Send the user back to root.
-#         return HttpResponseRedirect("/")
-#     else:
-#         return HttpResponseForbidden()
+
 @authentication_classes([SessionAuthentication])
 @permission_classes([IsAuthenticatedOrReadOnly])
 def exampleLoadView(request, example_name):
