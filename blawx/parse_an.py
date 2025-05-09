@@ -3,25 +3,25 @@ import lxml
 
 NS = "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}"
 TAGS = [
-    'act',
-    'body',
-    'hcontainer',
-    'part',
-    'section',
-    'subsection',
-    'paragraph',
-    'subparagraph',
-    'span'
+    "act",
+    "body",
+    "hcontainer",
+    "part",
+    "section",
+    "subsection",
+    "paragraph",
+    "subparagraph",
+    "span",
 ]
 
 LAW_PARTS = [NS + tag for tag in TAGS]
 
 # An example of the target look for a content node looks like this:
 # <content xmlns="http://docs.oasis-open.org/legaldocml/ns/akn/3.0">
-#   <p>The winner of a game is the 
+#   <p>The winner of a game is the
 #       <span class="lawpart span" id="sec_4_section__player_span">
 #           <input class="form-check-inline" type="radio" name="section" id="sec_4_section__player_span">
-#               player who 
+#               player who
 #               <span class="lawpart span" id="sec_4_section__player_span__throws_span">
 #                   <input class="form-check-inline" type="radio" name="section" id="sec_4_section__payer_span__throws_span">
 #                   throws a sign
@@ -32,6 +32,7 @@ LAW_PARTS = [NS + tag for tag in TAGS]
 # </content>
 # Need to make some changes to the CSS so it displays better, but that should do the trick.
 
+
 def generate_text(node):
     if type(node) != str:
         for child in node.getchildren():
@@ -41,46 +42,63 @@ def generate_text(node):
             else:
                 generate_text(child)
     return
-    
+
+
 def generate_span(node):
     # Add 'lawpart span' to the classes for the span node.
-    node.attrib['class'] = "lawpart span"
+    node.attrib["class"] = "lawpart span"
     # Add an input node as a first-child for the span.
-    node.insert(0,node.makeelement('input',{
-        'class': "form-check-inline",
-        'type': "radio",
-        'name': "section",
-        'id': node.attrib['eId'] + "_section"
-    }))
+    node.insert(
+        0,
+        node.makeelement(
+            "input",
+            {
+                "class": "form-check-inline",
+                "type": "radio",
+                "name": "section",
+                "id": node.attrib["eId"] + "_section",
+            },
+        ),
+    )
     node.getchildren()[0].tail = node.text
-    lxml.objectify.ObjectifiedDataElement._setText(node,'')
+    lxml.objectify.ObjectifiedDataElement._setText(node, "")
     return
 
-def generate_selector(type,name,text,children,checked=False):
+
+def generate_selector(type, name, text, children, checked=False):
     html = ""
     html += '<div class="lawpart ' + type + '"><div class="form-check">'
-    html += '<input class="form-check-input" type="radio" name="section" id="' + name + '_section"'
+    html += (
+        '<input class="form-check-input" type="radio" name="section" id="'
+        + name
+        + '_section"'
+    )
     if checked:
-        html += ' checked'
+        html += " checked"
     html += ">"
     html += '<div class="lawtext"'
     if children:
-        html += '><i class="bi bi-caret-right" data-bs-toggle="collapse" data-bs-target="#' + name + '"></i>'
+        html += (
+            '><i class="bi bi-caret-right" data-bs-toggle="collapse" data-bs-target="#'
+            + name
+            + '"></i>'
+        )
     else:
-        html += '>'
+        html += ">"
     html += text
-    html += '</div></div></div>'
+    html += "</div></div></div>"
     if children:
         html += '<div class="subparts collapse" id="' + name + '">'
     return html
 
-def generate_tree(node,indent=0):
+
+def generate_tree(node, indent=0):
     html = ""
     if node.tag == NS + "act":
         # Add the header, the do the same to the body.
         title = node.preface.find(NS + "p[@class='title']")
         html += '<nav class="column">\n'
-        html += generate_selector("act","root",title.shortTitle.text,True,True)
+        html += generate_selector("act", "root", title.shortTitle.text, True, True)
         for child in node.body.getchildren():
             html += generate_tree(child)
         html += "</div></nav>"
@@ -90,44 +108,68 @@ def generate_tree(node,indent=0):
         initial_text = ""
         # First, we are going to generate the text that
         # should appear here if it is a numbered or named section.
-        if NS + 'num' in subtags:
-            if node['num'].text:
-                initial_text += "<num>" + node['num'].text + "</num>"
-        if NS + 'heading' in subtags:
-            if node['heading'].text:
-                initial_text += node['heading'].text
-        if NS + 'subheading' in subtags:
-            if node['subheading'].text:
-                initial_text += node['subheading'].text
+        if NS + "num" in subtags:
+            if node["num"].text:
+                initial_text += "<num>" + node["num"].text + "</num>"
+        if NS + "heading" in subtags:
+            if node["heading"].text:
+                initial_text += node["heading"].text
+        if NS + "subheading" in subtags:
+            if node["subheading"].text:
+                initial_text += node["subheading"].text
 
         # Now we need to figure out if this is a leaf node, or not
         # It is a leaf node if it contains a content tag.
-        if NS + "content" in subtags: # This is a leaf node
+        if NS + "content" in subtags:  # This is a leaf node
             # the initial text should be added to the HTML as a lawtext part, followed
             # by the content of the internal text elements.
             content_text = ""
-            generate_text(node['content'])
-            content_text = etree.tostring(node['content'], method="html", encoding="utf-8").decode('utf-8')
+            generate_text(node["content"])
+            content_text = etree.tostring(
+                node["content"], method="html", encoding="utf-8"
+            ).decode("utf-8")
             # Get a good name for the current node
-            node_name =  node.attrib['eId']
-            html += generate_selector(node.tag.replace(NS,""),node_name,initial_text + " " + content_text,False)
-        else: # This is a node with optional intro and wrapup, and list of sub-elements.
+            node_name = node.attrib["eId"]
+            html += generate_selector(
+                node.tag.replace(NS, ""),
+                node_name,
+                initial_text + " " + content_text,
+                False,
+            )
+        else:  # This is a node with optional intro and wrapup, and list of sub-elements.
             # If this section has an intro, add the text of the intro to the initial_text
-            if NS + "intro" in subtags: # This section has an intro.
-                generate_text(node['intro'])
-                initial_text += etree.tostring(node['intro'], method="html", encoding="utf-8").decode('utf-8')
+            if NS + "intro" in subtags:  # This section has an intro.
+                generate_text(node["intro"])
+                initial_text += etree.tostring(
+                    node["intro"], method="html", encoding="utf-8"
+                ).decode("utf-8")
             # Get a good name for the current node
-            node_name =  node.attrib['eId']
+            node_name = node.attrib["eId"]
             # Generate the selector, and the start of the sub-parts
-            html += generate_selector(node.tag.replace(NS,""),node_name,initial_text,True)
+            html += generate_selector(
+                node.tag.replace(NS, ""), node_name, initial_text, True
+            )
             # Generate the sub-parts.
             for child in children:
-                if child.tag not in [NS + "num", NS + "heading", NS + "content", NS + "subheading", NS + 'intro',NS + 'wrapup']:
+                if child.tag not in [
+                    NS + "num",
+                    NS + "heading",
+                    NS + "content",
+                    NS + "subheading",
+                    NS + "intro",
+                    NS + "wrapup",
+                ]:
                     html += generate_tree(child)
             # If there is a wrapup tag, add it to the subparts as a lawtext.
             if NS + "wrapup" in subtags:
-                generate_text(node['wrapup'])
-                html += '<div class="lawtext">' + etree.tostring(node['wrapup'], method="html", encoding="utf-8").decode('utf-8') + "</div>"
+                generate_text(node["wrapup"])
+                html += (
+                    '<div class="lawtext">'
+                    + etree.tostring(
+                        node["wrapup"], method="html", encoding="utf-8"
+                    ).decode("utf-8")
+                    + "</div>"
+                )
             # Close the sub-parts
             html += "</div>"
     return html

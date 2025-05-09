@@ -1,17 +1,20 @@
 from .models import Workspace, BlawxTest
 from rest_framework import serializers
 
+
 class CodeUpdateRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = Workspace
-        fields = ['xml_content', 'scasp_encoding']
+        fields = ["xml_content", "scasp_encoding"]
+
 
 class TestViewUpdateRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlawxTest
-        fields = ['view']
+        fields = ["view"]
+
 
 class SaveFactsRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlawxTest
-        fields = ['fact_scenario']
+        fields = ["fact_scenario"]

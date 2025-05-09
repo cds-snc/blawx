@@ -1,8 +1,8 @@
 <div id="user" class="col-auto">
     {% block user_menu %}
-    <i class="bi bi-person-circle" style="color:white; font-size:200%"
-        data-bs-toggle="dropdown" aria-expanded="false"></i>
-    <div class="dropdown text-end">
+    <div class="dropdown">
+        <i class="bi bi-person-circle" style="color:white; font-size:200%"
+            data-bs-toggle="dropdown" aria-expanded="false" role="button"></i>
         <ul class="dropdown-menu text-small">
             {% if user.is_authenticated %}
             <li>
