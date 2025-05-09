@@ -10,6 +10,7 @@ RUN apt-get -y update
 
 RUN pip3 install Django
 
+# Install additional required packages
 RUN set -eux; \
 	apt-get update; \
 	apt-get install -y --no-install-recommends \
@@ -21,24 +22,57 @@ RUN set -eux; \
 	libxslt1-dev \
 	gcc \
 	wget \
-	unzip 
-
+	unzip \
+	make \
+	g++ \
+	libpcre3-dev \
+	libedit-dev \
+	libgmp-dev \
+	libssl-dev \
+	libarchive-dev \
+	libxml2-dev \
+	libxslt1-dev \
+	zlib1g-dev \
+	libjpeg-dev \
+	libpng-dev \
+	libreadline-dev \
+	libedit-dev \
+	libgmp-dev \
+	libssl-dev \
+	libarchive-dev \
+	libxml2-dev \
+	libxslt1-dev \
+	zlib1g-dev \
+	libjpeg-dev \
+	libpng-dev \
+	libreadline-dev
 
 WORKDIR /app
 
+# Download and extract sCASP
 RUN set -eux; \
-    wget  https://github.com/SWI-Prolog/sCASP/archive/refs/heads/master.zip ; \
+	wget https://github.com/SWI-Prolog/sCASP/archive/refs/heads/master.zip ; \
 	unzip master.zip; \
 	mv sCASP-master sCASP; \
 	rm master.zip
 
+# Copy the entire SWI-Prolog installation
 COPY --from=prolog /usr/lib/swipl/ /usr/lib/swipl/
+COPY --from=prolog /usr/bin/swipl /usr/bin/swipl
 
-RUN ln -s /usr/lib/swipl/bin/x86_64-linux/swipl /usr/local/bin/swipl
+# Make sure the binary is executable
+RUN chmod +x /usr/bin/swipl
 
+# Create necessary directories
+RUN mkdir -p /root/.local/share/swi-prolog/pack
+
+# Install sCASP manually
 RUN set -eux; \
-  cd sCASP; \
-  swipl -g "pack_install('.',[interactive(false)])" -t halt
+	cd sCASP && \
+	mkdir -p /root/.local/share/swi-prolog/pack/scasp && \
+	cp -r * /root/.local/share/swi-prolog/pack/scasp/ && \
+	cd /root/.local/share/swi-prolog/pack/scasp && \
+	swipl -g "make" -t halt
 
 COPY ./blawx/requirements.txt blawx/blawx/requirements.txt
 
@@ -52,7 +86,6 @@ RUN mkdir blawx/blawx/static/blawx/blockly
 
 RUN mkdir blawx/blawx/static/blawx/fonts
 
-# RUN git clone https://github.com/google/blockly --branch develop blawx/blawx/static/blawx/blockly 
 
 RUN npm install blockly
 
@@ -61,8 +94,6 @@ RUN mv ./node_modules/blockly /app/blawx/blawx/static/blawx
 RUN mkdir /app/blawx/blawx/static/blawx/blockly/appengine
 
 RUN curl https://raw.githubusercontent.com/google/blockly/develop/appengine/storage.js > /app/blawx/blawx/static/blawx/blockly/appengine/storage.js
-
-# RUN cp /blawx/blawx/static/blawx/blockly/msg/js/en.js /blawx/blawx/static/blawx/en.js
 
 
 RUN npm install jquery
