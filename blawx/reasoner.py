@@ -1,14 +1,24 @@
 from django.http import Http404, HttpResponseNotFound, HttpResponseForbidden
 from django.contrib.auth.models import User
 
-from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from rest_framework.decorators import (
+    api_view,
+    permission_classes,
+    authentication_classes,
+)
 from rest_framework.response import Response
+
 # from rest_framework.permissions import AllowAny
 from rest_framework.authentication import SessionAuthentication, BasicAuthentication
-from rest_framework.permissions import IsAuthenticated, DjangoObjectPermissions, IsAuthenticatedOrReadOnly, AllowAny
+from rest_framework.permissions import (
+    IsAuthenticated,
+    DjangoObjectPermissions,
+    IsAuthenticatedOrReadOnly,
+    AllowAny,
+)
 import tempfile
 import os
-import json 
+import json
 import re
 from contextlib import redirect_stderr
 import pyparsing as pp
@@ -25,11 +35,13 @@ from .passthrough import blawx_passthrough
 
 from rest_framework import permissions
 
+
 class IgnorePermission(permissions.BasePermission):
-    message = 'None.'
+    message = "None."
 
     def has_permission(self, request, view):
-         return True
+        return True
+
 
 # New Proposed Format for JSON fact submissions, which adheres to the s(CASP) logic better,
 # and allows you to specify true, false, or unknown.
@@ -41,7 +53,7 @@ class IgnorePermission(permissions.BasePermission):
 #   key, with the value of the attribute.
 # * An object key, which gives the symbol for the object (if of type true or false), or a variable object
 # * If it has an attribute key, a value key, which gives the value for the statement in text, or a variable object.
-# 
+#
 # A variable object is an dictionary with only one key, "variable", and a string value for the name of the variable.
 # The variable names are ignored, and serve only to determine whether the same variable is being used in both the
 # object and the value key.
@@ -73,102 +85,139 @@ class IgnorePermission(permissions.BasePermission):
 #   ]
 # }
 
+
 def isVariable(param):
-  if type(param) is dict and 'variable' in param:
-    return True
-  else:
-    return False
-  
+    if type(param) is dict and "variable" in param:
+        return True
+    else:
+        return False
+
+
 # Note that this makes the variables in the JSON input case-insensitive.
 def convertVariables(param):
-  if type(param) is dict and 'variable' in param:
-    return param['variable'].upper()
-  else:
-    return param
+    if type(param) is dict and "variable" in param:
+        return param["variable"].upper()
+    else:
+        return param
 
-def even_newer_json_2_scasp(payload,user,rule,testname):
-  output = ""
-  ontology = get_ontology_internal(user,rule,testname)
-  # Basically, we need to know what the predicate is, what the parameters are, whether the parameters have category types, and if they are variables.
-  # So get the predicate, look up the typing, modify for negation if required, and generate the fact, testing for categories if required.
 
-  # Statement (:- Conditions) .
-  # Statement = [negation]predicate(params)
-  # The params are the object, the object and the value, or the params in order, depending.
-  # If any of them is typed to a category, and is a variable, that category and that variable are added to the conditions.
+def even_newer_json_2_scasp(payload, user, rule, testname):
+    output = ""
+    ontology = get_ontology_internal(user, rule, testname)
+    # Basically, we need to know what the predicate is, what the parameters are, whether the parameters have category types, and if they are variables.
+    # So get the predicate, look up the typing, modify for negation if required, and generate the fact, testing for categories if required.
 
-  for fact in payload['facts']:
-    if 'from_ontology' in fact and not fact['from_ontology']:
-      negation = "-" if fact['type'] == "false" else ""
-      if 'category' in fact:
-        predicate = fact['category']
-        parameters = [fact['object']]
-        categories = [predicate]
-      elif 'attribute' in fact:
-        predicate = fact['attribute']    
-        if 'value' in fact:
-          for att in ontology['Attributes']:
-            if predicate == att['Attribute']:
-              object_category = att['Category']
-              value_category = att['Type']
-              break
-          categories = [object_category,value_category]
-          parameters = [fact['object'],fact['value']]
-        else:
-          parameters = [fact['object']]
-          for att in ontology['Attributes']:
-            if predicate == att['Attribute']:
-              object_category = att['Category']
-              break
-          categories = [object_category]
-      elif 'relationship' in fact:
-        predicate = fact['relationship']
-        arity = len(fact)-3 # Subtract "from ontology" "type" and "relationship"
-        parameters = []
-        p = 1
-        while p <= arity:
-          parameters.append(fact['parameter'+str(p)])
-          p += 1
-        categories = []
-        for rel in ontology['Relationships']:
-          if predicate == rel['Relationship']:
-            p = 1
-            while p <= arity:
-              categories.append(rel['Parameter'+str(p)])
-              p += 1
-            break
-      variables = list(map(isVariable, parameters))
-      parameters = list(map(convertVariables, parameters))
-      count = 0
-      while count < len(parameters):
-        parameters[count] = format_statement_value(parameters[count],categories[count])
-        count += 1
-      if fact['type'] != "unknown": # This is a true or false statement
-        conditions = []
-        for index, param in enumerate(parameters):
-          if variables[index] and categories[index] != "none":
-            conditions.append(categories[index] + "(" + param + ")")
-        statement = negation + predicate + "(" + ','.join(parameters) + ")"
-        output += statement + (" :- " if len(conditions) else "") + ','.join(conditions) + ".\n"
-      else: # This is an unknown statement
-        # Something should be added to the conditions if the parameter is a variable, and the type is a category. If so, the conditions should exclude all
-        # the known elements of that category.
-        conditions = []
-        for index, param in enumerate(parameters):
-          if variables[index] and categories[index] != "none":
-            for obj in ontology['Objects']:
-              if obj['Category'] == categories[index]:
-                conditions.append(param + " \= " + obj['Object'])
-        positive_statement = predicate + "(" + ",".join(parameters) + ") :- not -" + predicate + "(" + ",".join(parameters) + ")" + ("," if len(conditions) else "") + ",".join(conditions) + ".\n"
-        negative_statement = "-" + predicate + "(" + ",".join(parameters) + ") :- not " + predicate + "(" + ",".join(parameters) + ")" + ("," if len(conditions) else "") + ",".join(conditions) + ".\n"
-        output += positive_statement + negative_statement
-  return output
+    # Statement (:- Conditions) .
+    # Statement = [negation]predicate(params)
+    # The params are the object, the object and the value, or the params in order, depending.
+    # If any of them is typed to a category, and is a variable, that category and that variable are added to the conditions.
+
+    for fact in payload["facts"]:
+        if "from_ontology" in fact and not fact["from_ontology"]:
+            negation = "-" if fact["type"] == "false" else ""
+            if "category" in fact:
+                predicate = fact["category"]
+                parameters = [fact["object"]]
+                categories = [predicate]
+            elif "attribute" in fact:
+                predicate = fact["attribute"]
+                if "value" in fact:
+                    for att in ontology["Attributes"]:
+                        if predicate == att["Attribute"]:
+                            object_category = att["Category"]
+                            value_category = att["Type"]
+                            break
+                    categories = [object_category, value_category]
+                    parameters = [fact["object"], fact["value"]]
+                else:
+                    parameters = [fact["object"]]
+                    for att in ontology["Attributes"]:
+                        if predicate == att["Attribute"]:
+                            object_category = att["Category"]
+                            break
+                    categories = [object_category]
+            elif "relationship" in fact:
+                predicate = fact["relationship"]
+                arity = (
+                    len(fact) - 3
+                )  # Subtract "from ontology" "type" and "relationship"
+                parameters = []
+                p = 1
+                while p <= arity:
+                    parameters.append(fact["parameter" + str(p)])
+                    p += 1
+                categories = []
+                for rel in ontology["Relationships"]:
+                    if predicate == rel["Relationship"]:
+                        p = 1
+                        while p <= arity:
+                            categories.append(rel["Parameter" + str(p)])
+                            p += 1
+                        break
+            variables = list(map(isVariable, parameters))
+            parameters = list(map(convertVariables, parameters))
+            count = 0
+            while count < len(parameters):
+                parameters[count] = format_statement_value(
+                    parameters[count], categories[count]
+                )
+                count += 1
+            if fact["type"] != "unknown":  # This is a true or false statement
+                conditions = []
+                for index, param in enumerate(parameters):
+                    if variables[index] and categories[index] != "none":
+                        conditions.append(categories[index] + "(" + param + ")")
+                statement = negation + predicate + "(" + ",".join(parameters) + ")"
+                output += (
+                    statement
+                    + (" :- " if len(conditions) else "")
+                    + ",".join(conditions)
+                    + ".\n"
+                )
+            else:  # This is an unknown statement
+                # Something should be added to the conditions if the parameter is a variable, and the type is a category. If so, the conditions should exclude all
+                # the known elements of that category.
+                conditions = []
+                for index, param in enumerate(parameters):
+                    if variables[index] and categories[index] != "none":
+                        for obj in ontology["Objects"]:
+                            if obj["Category"] == categories[index]:
+                                conditions.append(param + " \= " + obj["Object"])
+                positive_statement = (
+                    predicate
+                    + "("
+                    + ",".join(parameters)
+                    + ") :- not -"
+                    + predicate
+                    + "("
+                    + ",".join(parameters)
+                    + ")"
+                    + ("," if len(conditions) else "")
+                    + ",".join(conditions)
+                    + ".\n"
+                )
+                negative_statement = (
+                    "-"
+                    + predicate
+                    + "("
+                    + ",".join(parameters)
+                    + ") :- not "
+                    + predicate
+                    + "("
+                    + ",".join(parameters)
+                    + ")"
+                    + ("," if len(conditions) else "")
+                    + ",".join(conditions)
+                    + ".\n"
+                )
+                output += positive_statement + negative_statement
+    return output
 
 
 # def newer_json_2_scasp(payload,ruledoc,testname):
 #   output = ""
 
- 
+
 #   # Grab the ontology for the current test.
 #   ontology = get_ontology_internal(ruledoc,testname)
 
@@ -239,7 +288,7 @@ def even_newer_json_2_scasp(payload,user,rule,testname):
 #           if type(fact['object']) is dict:
 #             object_display = "X"
 #           else:
-#             object_display = fact['object'] 
+#             object_display = fact['object']
 #           output += basic_predicate + "(" + object_display + ") :- not -" + basic_predicate + "(" + object_display + ")"
 #           if object_display == "X":
 #             output += object_type + "(X)"
@@ -301,43 +350,49 @@ def even_newer_json_2_scasp(payload,user,rule,testname):
 #             output += "not " + basic_predicate + "(" + object_display + ").\n"
 #   return output
 
-def format_statement_value(value,attribute_type):
-  iso8601_date_re = r"^(\d{4})-(\d{2})-(\d{2})$"
-  time_re = r"^(\d{2}):(\d{2})$"
-  iso8601_datetime_re = r"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$"
-  iso8601_duration_re = r"^(-)?P(\d+Y)?(\d+M)?(\d+D)?T?(\d+H)?(\d+M)?(\d+S)?$"
-  if attribute_type == "date":
-    matches = re.findall(iso8601_date_re,value,re.MULTILINE)
-    if len(matches):
-      (year,month,day) = matches[0]
-      date = datetime(int(year),int(month),int(day))
-      date_format = 'date(' + str(date.timestamp()) + ')'
-      return date_format
-  if attribute_type == "time":
-    matches = re.findall(time_re,value,re.MULTILINE)
-    if len(matches):
-      (hour,minute) = matches[0]
-      value = (int(hour)*3600) + (int(minute)*60)
-      time_format = 'time(' + str(value) + ')'
-      return time_format
-  if attribute_type == "datetime":
-    matches = re.findall(iso8601_datetime_re,value,re.MULTILINE)
-    if len(matches):
-      (year,month,day,hour,minute) = matches[0]
-      date = datetime(int(year),int(month),int(day),int(hour),int(minute))
-      datetime_format = 'datetime(' + str(date.timestamp()) + ')'
-      return datetime_format
-  if attribute_type == "duration":
-    matches = re.findall(iso8601_duration_re,value,re.MULTILINE)
-    if len(matches):
-      (sign,years,months,days,hours,minutes,seconds) = matches[0]
-      value = (int(days[:-1]) * 86400) + (int(hours[:-1]) * 3600) + (int(minutes[:-1]) * 60)
-      if sign == "-":
-        value = value * -1
-      duration_format = 'duration(' + str(value) + ')'
-      return duration_format
-  # If you get to this point, just return a string version.
-  return str(value)
+
+def format_statement_value(value, attribute_type):
+    iso8601_date_re = r"^(\d{4})-(\d{2})-(\d{2})$"
+    time_re = r"^(\d{2}):(\d{2})$"
+    iso8601_datetime_re = r"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$"
+    iso8601_duration_re = r"^(-)?P(\d+Y)?(\d+M)?(\d+D)?T?(\d+H)?(\d+M)?(\d+S)?$"
+    if attribute_type == "date":
+        matches = re.findall(iso8601_date_re, value, re.MULTILINE)
+        if len(matches):
+            (year, month, day) = matches[0]
+            date = datetime(int(year), int(month), int(day))
+            date_format = "date(" + str(date.timestamp()) + ")"
+            return date_format
+    if attribute_type == "time":
+        matches = re.findall(time_re, value, re.MULTILINE)
+        if len(matches):
+            (hour, minute) = matches[0]
+            value = (int(hour) * 3600) + (int(minute) * 60)
+            time_format = "time(" + str(value) + ")"
+            return time_format
+    if attribute_type == "datetime":
+        matches = re.findall(iso8601_datetime_re, value, re.MULTILINE)
+        if len(matches):
+            (year, month, day, hour, minute) = matches[0]
+            date = datetime(int(year), int(month), int(day), int(hour), int(minute))
+            datetime_format = "datetime(" + str(date.timestamp()) + ")"
+            return datetime_format
+    if attribute_type == "duration":
+        matches = re.findall(iso8601_duration_re, value, re.MULTILINE)
+        if len(matches):
+            (sign, years, months, days, hours, minutes, seconds) = matches[0]
+            value = (
+                (int(days[:-1]) * 86400)
+                + (int(hours[:-1]) * 3600)
+                + (int(minutes[:-1]) * 60)
+            )
+            if sign == "-":
+                value = value * -1
+            duration_format = "duration(" + str(value) + ")"
+            return duration_format
+    # If you get to this point, just return a string version.
+    return str(value)
+
 
 # def new_json_2_scasp(payload,ruledoc,testname,exclude_assumptions=False):
 #   output = ""
@@ -373,7 +428,7 @@ def format_statement_value(value,attribute_type):
 #               for ko in known_objects:
 #                 output += ", X \= " + ko
 #               output += ".\n"
-    
+
 #       # For each attribute
 #       if 'attributes_known' in category_contents:
 #         for (cat_attrib_name,cat_attrib_known) in category_contents['attributes_known'].items():
@@ -398,7 +453,7 @@ def format_statement_value(value,attribute_type):
 #             for kvo in known_value_objects:
 #               output += ", X \= " + kvo
 #             output += ".\n"
-            
+
 #     # For each member
 #     if 'members' in category_contents and len(category_contents['members']):
 #       for (object_name,object_attributes) in category_contents['members'].items():
@@ -467,86 +522,93 @@ def format_statement_value(value,attribute_type):
 
 #   return output
 
-@api_view(['POST'])
+
+@api_view(["POST"])
 @authentication_classes([SessionAuthentication])
 @permission_classes([AllowAny])
-def run_test(request,user,rule,test_name):
+def run_test(request, user, rule, test_name):
     # Get the data (test, facts, and workspaces)
     # ruledoctest = RuleDoc.objects.filter(pk=ruledoc,owner=request.user)
     owner = User.objects.get(username=user)
-    test = BlawxTest.objects.get(ruledoc=RuleDoc.objects.get(rule_slug=rule,owner=owner),test_name=test_name)
-    if request.user.has_perm('blawx.run',test):
-      translated_facts = ""
-      if request.data:
-        translated_facts = even_newer_json_2_scasp(request.data,user,rule,test_name)
-        # print("Facts Generated for Run Request:\n")
-        # print(translated_facts)
-      wss = Workspace.objects.filter(ruledoc=RuleDoc.objects.get(rule_slug=rule,owner=owner))
-      ruleset = ""
-      # for ws in wss:
-      #   ruleset += "\n\n" + ws.scasp_encoding
-      # ruleset += "\n\n" + test.scasp_encoding
-      unique_rules = []
-      for ws in wss:
-        # Go line by line through the code in each workspace. If the line is "% BLAWX CHECK DUPLICATE" then ignore that line and simplify the next line,
-        ruleset += "\n\n"
-        workspace_lines = ws.scasp_encoding.splitlines()
-        register_duplicate = False
-        for line in workspace_lines:
-          if line == "% BLAWX CHECK DUPLICATES":
-            register_duplicate = True
-            continue
-          elif register_duplicate == True:
-            # and add it to a checked list if it's not already in the list.
+    test = BlawxTest.objects.get(
+        ruledoc=RuleDoc.objects.get(rule_slug=rule, owner=owner), test_name=test_name
+    )
+    if request.user.has_perm("blawx.run", test):
+        translated_facts = ""
+        if request.data:
+            translated_facts = even_newer_json_2_scasp(
+                request.data, user, rule, test_name
+            )
+            # print("Facts Generated for Run Request:\n")
+            # print(translated_facts)
+        wss = Workspace.objects.filter(
+            ruledoc=RuleDoc.objects.get(rule_slug=rule, owner=owner)
+        )
+        ruleset = ""
+        # for ws in wss:
+        #   ruleset += "\n\n" + ws.scasp_encoding
+        # ruleset += "\n\n" + test.scasp_encoding
+        unique_rules = []
+        for ws in wss:
+            # Go line by line through the code in each workspace. If the line is "% BLAWX CHECK DUPLICATE" then ignore that line and simplify the next line,
+            ruleset += "\n\n"
+            workspace_lines = ws.scasp_encoding.splitlines()
             register_duplicate = False
-            simplified_line = simplify_rule(line)
-            if simplified_line not in unique_rules:
-              unique_rules.append(simplified_line)
-            continue
-          else:
-            # Otherwise, add it to the code.
-            ruleset += line + "\n"
+            for line in workspace_lines:
+                if line == "% BLAWX CHECK DUPLICATES":
+                    register_duplicate = True
+                    continue
+                elif register_duplicate == True:
+                    # and add it to a checked list if it's not already in the list.
+                    register_duplicate = False
+                    simplified_line = simplify_rule(line)
+                    if simplified_line not in unique_rules:
+                        unique_rules.append(simplified_line)
+                    continue
+                else:
+                    # Otherwise, add it to the code.
+                    ruleset += line + "\n"
 
-        
-      # do the same thing for the test.
-      ruleset += "\n\n"
-      test_lines = test.scasp_encoding.splitlines()
-      register_duplicate = False
-      for line in test_lines:
-        if line == "% BLAWX CHECK DUPLICATES":
-          register_duplicate = True
-          continue
-        elif register_duplicate == True:
-          register_duplicate = False
-          simplified_line = simplify_rule(line)
-          if simplified_line not in unique_rules:
-            unique_rules.append(simplified_line)
-          continue
-        else:
-          ruleset += line + "\n"
+        # do the same thing for the test.
+        ruleset += "\n\n"
+        test_lines = test.scasp_encoding.splitlines()
+        register_duplicate = False
+        for line in test_lines:
+            if line == "% BLAWX CHECK DUPLICATES":
+                register_duplicate = True
+                continue
+            elif register_duplicate == True:
+                register_duplicate = False
+                simplified_line = simplify_rule(line)
+                if simplified_line not in unique_rules:
+                    unique_rules.append(simplified_line)
+                continue
+            else:
+                ruleset += line + "\n"
 
-      # Now add all the checked duplicate rules.
-      for ur in unique_rules:
-        ruleset += ur + "\n"
-      
+        # Now add all the checked duplicate rules.
+        for ur in unique_rules:
+            ruleset += ur + "\n"
 
-
-      rulefile = tempfile.NamedTemporaryFile('w',delete=False)
-      rulefile.write("""
+        rulefile = tempfile.NamedTemporaryFile("w", delete=False)
+        rulefile.write(
+            """
 :- use_module(library(scasp)).
 :- use_module(library(scasp/human)).
 :- use_module(library(scasp/output)).
 
 :- meta_predicate
     blawxrun2(0,-).
-""")
+"""
+        )
 
-      query = "No Query Specified"
-      for line in test.scasp_encoding.splitlines():
-          if line.startswith("?- "):
-              query = line[3:-1] # remove query prompt and period.
+        query = "No Query Specified"
+        for line in test.scasp_encoding.splitlines():
+            if line.startswith("?- "):
+                query = line[3:-1]  # remove query prompt and period.
 
-      rulefile.write("""
+        rulefile.write(
+            """
 blawxrun(Query, Human, Tree, Model) :-
     scasp(Query,[tree(Tree),model(Model),source(false)]),
     ovar_analyze_term(t(Query, Tree),[name_constraints(true)]),
@@ -554,108 +616,134 @@ blawxrun(Query, Human, Tree, Model) :-
               human_justification_tree(Tree,[])).
     %term_attvars(Query, AttVars),
     %maplist(del_attrs, AttVars).
-""")
+"""
+        )
 
-#       rulefile.write("""
-# blawxrun(Query, Human) :-
-#     scasp(Query,[tree(Tree),source(false)]),
-#     ovar_analyze_term(t(Query, Tree),[name_constraints(true)]),
-#     with_output_to(string(Human),
-#               human_justification_tree(Tree,[])).
-#     term_attvars(Query, AttVars),
-#     maplist(del_attrs, AttVars).
-# """)
-  
-      rulefile.write(blawx_passthrough + '\n\n')
-      rulefile.write(ldap_code + '\n\n')
-      rulefile.write(scasp_dates + '\n\n')
-      rulefile.write(scasp_now + '\n\n')
-      rulefile.write(scasp_aggregates + '\n\n')
-      rulefile.write(ec_code + '\n\n')
+        #       rulefile.write("""
+        # blawxrun(Query, Human) :-
+        #     scasp(Query,[tree(Tree),source(false)]),
+        #     ovar_analyze_term(t(Query, Tree),[name_constraints(true)]),
+        #     with_output_to(string(Human),
+        #               human_justification_tree(Tree,[])).
+        #     term_attvars(Query, AttVars),
+        #     maplist(del_attrs, AttVars).
+        # """)
 
+        rulefile.write(blawx_passthrough + "\n\n")
+        rulefile.write(ldap_code + "\n\n")
+        rulefile.write(scasp_dates + "\n\n")
+        rulefile.write(scasp_now + "\n\n")
+        rulefile.write(scasp_aggregates + "\n\n")
+        rulefile.write(ec_code + "\n\n")
 
-      rulefile.write(ruleset + '\n')
-      # Ignore differences in spaces (this will cause problems when the sapces are meaningful and inside strings, e.g.)
-      ruleset_lines = [line.replace(' ','') for line in ruleset.splitlines()]
-      test_lines = [line.replace(' ','') for line in test.scasp_encoding.splitlines()]
-      for fact in translated_facts.splitlines():
-        if fact.replace(' ','') not in ruleset_lines and fact.replace(' ','') not in test_lines:
-          rulefile.write(fact + '\n')
-      # rulefile.write(translated_facts)
-      rulefile.close()
-      rulefilename = rulefile.name
-      temprulefile = open(rulefilename,'r')
-      #print(temprulefile.read())
-      temprulefile.close()
+        rulefile.write(ruleset + "\n")
+        # Ignore differences in spaces (this will cause problems when the sapces are meaningful and inside strings, e.g.)
+        ruleset_lines = [line.replace(" ", "") for line in ruleset.splitlines()]
+        test_lines = [
+            line.replace(" ", "") for line in test.scasp_encoding.splitlines()
+        ]
+        for fact in translated_facts.splitlines():
+            if (
+                fact.replace(" ", "") not in ruleset_lines
+                and fact.replace(" ", "") not in test_lines
+            ):
+                rulefile.write(fact + "\n")
+        # rulefile.write(translated_facts)
+        rulefile.close()
+        rulefilename = rulefile.name
+        temprulefile = open(rulefilename, "r")
+        # print(temprulefile.read())
+        temprulefile.close()
 
-      # Start the Prolog "thread"
-      try: 
-        with PrologMQI() as swipl:
-            with swipl.create_thread() as swipl_thread:
+        # Start the Prolog "thread"
+        try:
+            with PrologMQI() as swipl:
+                with swipl.create_thread() as swipl_thread:
 
-                transcript = tempfile.NamedTemporaryFile('w',delete=False,prefix="transcript_")
-                transcript_name = transcript.name
+                    transcript = tempfile.NamedTemporaryFile(
+                        "w", delete=False, prefix="transcript_"
+                    )
+                    transcript_name = transcript.name
 
-                with redirect_stderr(transcript):
-                    load_file_answer = swipl_thread.query("['" + rulefilename + "'].")
-                transcript.write(str(load_file_answer) + '\n')
-                if os.path.exists(rulefilename):
-                    rules = open(rulefilename)
-                    rulestext = rules.read()
-                    transcript.write(rulestext + '\n')
-                    rules.close()
-                    #os.remove(rulefilename)
+                    with redirect_stderr(transcript):
+                        load_file_answer = swipl_thread.query(
+                            "['" + rulefilename + "']."
+                        )
+                    transcript.write(str(load_file_answer) + "\n")
+                    if os.path.exists(rulefilename):
+                        rules = open(rulefilename)
+                        rulestext = rules.read()
+                        transcript.write(rulestext + "\n")
+                        rules.close()
+                        # os.remove(rulefilename)
 
-                #ec_preprocess_step(swipl_thread)
+                    # ec_preprocess_step(swipl_thread)
 
-                
-                #transcript.write(full_query)
-                with redirect_stderr(transcript):
-                    # print("blawxrun(" + query + ",Human).")
-                    query_answer = swipl_thread.query("blawxrun((" + query + "),Human,Tree,Model).")
-                    
-                transcript.write(str(query_answer) + '\n')
+                    # transcript.write(full_query)
+                    with redirect_stderr(transcript):
+                        # print("blawxrun(" + query + ",Human).")
+                        query_answer = swipl_thread.query(
+                            "blawxrun((" + query + "),Human,Tree,Model)."
+                        )
 
-                transcript.close()
-                transcript = open(transcript_name,'r')
-                # transcript = open("transcript",'r')
-                transcript_output = transcript.read()
-                transcript.close()
-                #os.remove(transcript_name)
-      except PrologError as err:
-        return Response({ "error": "There was an error while running the code.", "transcript": err.prolog() })
-      except PrologLaunchError as err:
-        query_answer = "Blawx could not load the reasoner."
-        return Response({ "error": "Blawx could not load the reasoner." })
-      # Return the results as JSON
-      if query_answer == False:
-        return Response({ "Answers": [], "Transcript": transcript_output })
-      else:
-        return Response({ "Answers": generate_answers(query_answer), "Transcript": transcript_output })
+                    transcript.write(str(query_answer) + "\n")
+
+                    transcript.close()
+                    transcript = open(transcript_name, "r")
+                    # transcript = open("transcript",'r')
+                    transcript_output = transcript.read()
+                    transcript.close()
+                    # os.remove(transcript_name)
+        except PrologError as err:
+            return Response(
+                {
+                    "error": "There was an error while running the code.",
+                    "transcript": err.prolog(),
+                }
+            )
+        except PrologLaunchError as err:
+            query_answer = "Blawx could not load the reasoner."
+            return Response({"error": "Blawx could not load the reasoner."})
+        # Return the results as JSON
+        if query_answer == False:
+            return Response({"Answers": [], "Transcript": transcript_output})
+        else:
+            return Response(
+                {
+                    "Answers": generate_answers(query_answer),
+                    "Transcript": transcript_output,
+                }
+            )
     else:
-      return HttpResponseForbidden()
+        return HttpResponseForbidden()
 
-def get_ontology_internal(user,rule,test_name):
+
+def get_ontology_internal(user, rule, test_name):
     owner = User.objects.get(username=user)
-    wss = Workspace.objects.filter(ruledoc=RuleDoc.objects.get(rule_slug=rule,owner=owner))
-    test = BlawxTest.objects.get(ruledoc=RuleDoc.objects.get(rule_slug=rule,owner=owner),test_name=test_name)
+    wss = Workspace.objects.filter(
+        ruledoc=RuleDoc.objects.get(rule_slug=rule, owner=owner)
+    )
+    test = BlawxTest.objects.get(
+        ruledoc=RuleDoc.objects.get(rule_slug=rule, owner=owner), test_name=test_name
+    )
     ruleset = ""
     for ws in wss:
-      ruleset += "\n\n" + ws.scasp_encoding
+        ruleset += "\n\n" + ws.scasp_encoding
     ruleset += "\n\n" + test.scasp_encoding
-    
-    rulefile = tempfile.NamedTemporaryFile('w',delete=False)
-    rulefile.write("""
+
+    rulefile = tempfile.NamedTemporaryFile("w", delete=False)
+    rulefile.write(
+        """
 :- use_module(library(scasp)).
 :- use_module(library(scasp/human)).
 :- use_module(library(scasp/output)).
 :- meta_predicate
     blawxrun2(0,-).
-""")
+"""
+    )
 
-    
-    
-    rulefile.write("""
+    rulefile.write(
+        """
 blawxrun(Query, Human) :-
     scasp(Query,[tree(Tree),source(false)]),
     ovar_analyze_term(t(Query, Tree),[name_constraints(true)]),
@@ -663,582 +751,803 @@ blawxrun(Query, Human) :-
 		           human_justification_tree(Tree,[])).
     term_attvars(Query, AttVars),
     maplist(del_attrs, AttVars).
-""")
+"""
+    )
 
-    rulefile.write(blawx_passthrough + '\n\n')
-    rulefile.write(ldap_code + '\n\n')
-    rulefile.write(scasp_dates + '\n\n')
-    rulefile.write(scasp_now + '\n\n')
-    rulefile.write(scasp_aggregates + '\n\n')
-    rulefile.write(ec_code + '\n\n')
-
+    rulefile.write(blawx_passthrough + "\n\n")
+    rulefile.write(ldap_code + "\n\n")
+    rulefile.write(scasp_dates + "\n\n")
+    rulefile.write(scasp_now + "\n\n")
+    rulefile.write(scasp_aggregates + "\n\n")
+    rulefile.write(ec_code + "\n\n")
 
     rulefile.write(ruleset)
     rulefile.close()
     rulefilename = rulefile.name
-    temprulefile = open(rulefilename,'r')
+    temprulefile = open(rulefilename, "r")
     # print(temprulefile.read())
     temprulefile.close()
 
     # Start the Prolog "thread"
-    try: 
-      with PrologMQI() as swipl:
-          with swipl.create_thread() as swipl_thread:
+    try:
+        with PrologMQI() as swipl:
+            with swipl.create_thread() as swipl_thread:
 
-              transcript = tempfile.NamedTemporaryFile('w',delete=False,prefix="transcript_")
-              transcript_name = transcript.name
+                transcript = tempfile.NamedTemporaryFile(
+                    "w", delete=False, prefix="transcript_"
+                )
+                transcript_name = transcript.name
 
-              with redirect_stderr(transcript):
-                  load_file_answer = swipl_thread.query("['" + rulefilename + "'].")
-              transcript.write(str(load_file_answer) + '\n')
-              if os.path.exists(rulefilename):
-                  rules = open(rulefilename)
-                  rulestext = rules.read()
-                  transcript.write(rulestext + '\n')
-                  rules.close()
-                  #os.remove(rulefilename)
+                with redirect_stderr(transcript):
+                    load_file_answer = swipl_thread.query("['" + rulefilename + "'].")
+                transcript.write(str(load_file_answer) + "\n")
+                if os.path.exists(rulefilename):
+                    rules = open(rulefilename)
+                    rulestext = rules.read()
+                    transcript.write(rulestext + "\n")
+                    rules.close()
+                    # os.remove(rulefilename)
 
-              #transcript.write(full_query)
-              with redirect_stderr(transcript):
-                  # print("blawxrun(blawx_category(Category),Human).")
-                  category_answers = []
-                  query1_answer = swipl_thread.query("blawxrun(blawx_category(Category),Human).")
-                  query1_answers = generate_answers(query1_answer)
-                  for cat in query1_answers:
-                    # We exclude Variable names that have been specified as a category name.
-                    if not re.search(r"^[A-Z_]\w*",cat['Variables']['Category']):
-                      category_answers.append(cat['Variables']['Category'])
-                  category_nlg = []
-                  for c in category_answers:
+                # transcript.write(full_query)
+                with redirect_stderr(transcript):
+                    # print("blawxrun(blawx_category(Category),Human).")
+                    category_answers = []
+                    query1_answer = swipl_thread.query(
+                        "blawxrun(blawx_category(Category),Human)."
+                    )
+                    query1_answers = generate_answers(query1_answer)
+                    for cat in query1_answers:
+                        # We exclude Variable names that have been specified as a category name.
+                        if not re.search(r"^[A-Z_]\w*", cat["Variables"]["Category"]):
+                            category_answers.append(cat["Variables"]["Category"])
+                    category_nlg = []
+                    for c in category_answers:
+                        try:
+                            cat_nlg_query_response = swipl_thread.query(
+                                "blawxrun(blawx_category_nlg("
+                                + c
+                                + ",Prefix,Postfix),Human)."
+                            )
+                        except PrologError as err:
+                            if err.prolog().startswith("existence_error"):
+                                continue
+                        cat_nlg_query_answers = generate_answers(cat_nlg_query_response)
+                        for cnlga in cat_nlg_query_answers:
+                            category_nlg.append(
+                                {
+                                    "Category": c,
+                                    "Prefix": cnlga["Variables"]["Prefix"],
+                                    "Postfix": cnlga["Variables"]["Postfix"],
+                                }
+                            )
+                    # print("blawxrun(blawx_attribute(Category,Attribute,ValueType),Human).")
+                    attribute_answers = []
+                    query2_answers = []
                     try:
-                      cat_nlg_query_response = swipl_thread.query("blawxrun(blawx_category_nlg(" + c + ",Prefix,Postfix),Human).")
+                        query2_answer = swipl_thread.query(
+                            "blawxrun(blawx_attribute(Category,Attribute,ValueType),Human)."
+                        )
+                        query2_answers = generate_answers(query2_answer)
+                        for att in query2_answers:
+                            # This excludes declarations that make variables into attribute types.
+                            if (
+                                not re.search(
+                                    r"^[A-Z_]\w*", att["Variables"]["ValueType"]
+                                )
+                                and not re.search(
+                                    r"^[A-Z_]\w*", att["Variables"]["Category"]
+                                )
+                                and not re.search(
+                                    r"^[A-Z_]\w*", att["Variables"]["Attribute"]
+                                )
+                            ):
+                                attribute_answers.append(
+                                    {
+                                        "Category": att["Variables"]["Category"],
+                                        "Attribute": att["Variables"]["Attribute"],
+                                        "Type": att["Variables"]["ValueType"],
+                                    }
+                                )
+                        transcript.write(str(query2_answer) + "\n")
                     except PrologError as err:
-                      if err.prolog().startswith('existence_error'):
-                        continue
-                    cat_nlg_query_answers = generate_answers(cat_nlg_query_response)
-                    for cnlga in cat_nlg_query_answers:
-                      category_nlg.append({"Category": c, "Prefix": cnlga['Variables']['Prefix'], "Postfix": cnlga['Variables']['Postfix']})
-                  # print("blawxrun(blawx_attribute(Category,Attribute,ValueType),Human).")
-                  attribute_answers = []
-                  query2_answers = []
-                  try:
-                    query2_answer = swipl_thread.query("blawxrun(blawx_attribute(Category,Attribute,ValueType),Human).")
-                    query2_answers = generate_answers(query2_answer)
+                        if err.prolog().startswith("existence_error"):
+                            pass
+
+                    attribute_nlg = []
+                    for a in attribute_answers:
+                        try:
+                            att_nlg_query_response = swipl_thread.query(
+                                "blawxrun(blawx_attribute_nlg("
+                                + a["Attribute"]
+                                + ",Order,Prefix,Infix,Postfix),Human)."
+                            )
+                        except PrologError as err:
+                            if err.prolog().startswith("existence_error"):
+                                continue
+                        att_nlg_query_answers = generate_answers(att_nlg_query_response)
+                        for anlga in att_nlg_query_answers:
+                            attribute_nlg.append(
+                                {
+                                    "Attribute": a["Attribute"],
+                                    "Order": anlga["Variables"]["Order"],
+                                    "Prefix": anlga["Variables"]["Prefix"],
+                                    "Infix": anlga["Variables"]["Infix"],
+                                    "Postfix": anlga["Variables"]["Postfix"],
+                                }
+                            )
+
+                    relationship_answers = []
+                    query3_answers = []
+                    try:
+                        query3_answer = swipl_thread.query(
+                            "blawxrun(blawx_relationship(Relationship,Param1,Param2,Param3),Human)."
+                        )
+                        query3_answers = generate_answers(query3_answer)
+                        for att in query3_answers:
+                            # This excludes declarations that make variables into attribute types.
+                            # TODO: I don't know if this is useful, here. It's checking to see if there are any variables being returned as the value type, category, or attribute. But
+                            # I'm having difficulty figuring out why that was ever a concern. There is no way to generate a blawx_relationship statement with variables in it.
+                            # if not  re.search(r"^[A-Z_]\w*",att['Variables']['ValueType']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Category']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Attribute']):
+                            relationship_answers.append(
+                                {
+                                    "Relationship": att["Variables"]["Relationship"],
+                                    "Parameter1": att["Variables"]["Param1"],
+                                    "Parameter2": att["Variables"]["Param2"],
+                                    "Parameter3": att["Variables"]["Param3"],
+                                }
+                            )
+                        transcript.write(str(query3_answer) + "\n")
+                    except PrologError as err:
+                        if err.prolog().startswith("existence_error"):
+                            pass
+
+                    query4_answers = []
+                    try:
+                        query4_answer = swipl_thread.query(
+                            "blawxrun(blawx_relationship(Relationship,Param1,Param2,Param3,Param4),Human)."
+                        )
+                        query4_answers = generate_answers(query4_answer)
+                        for att in query4_answers:
+                            # This excludes declarations that make variables into attribute types.
+                            # TODO: I don't know if this is useful, here. It's checking to see if there are any variables being returned as the value type, category, or attribute. But
+                            # I'm having difficulty figuring out why that was ever a concern. There is no way to generate a blawx_relationship statement with variables in it.
+                            # if not  re.search(r"^[A-Z_]\w*",att['Variables']['ValueType']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Category']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Attribute']):
+                            relationship_answers.append(
+                                {
+                                    "Relationship": att["Variables"]["Relationship"],
+                                    "Parameter1": att["Variables"]["Param1"],
+                                    "Parameter2": att["Variables"]["Param2"],
+                                    "Parameter3": att["Variables"]["Param3"],
+                                    "Parameter4": att["Variables"]["Param4"],
+                                }
+                            )
+                        transcript.write(str(query4_answer) + "\n")
+                    except PrologError as err:
+                        if err.prolog().startswith("existence_error"):
+                            pass
+
+                    query5_answers = []
+                    try:
+                        query5_answer = swipl_thread.query(
+                            "blawxrun(blawx_relationship(Relationship,Param1,Param2,Param3,Param4,Param5),Human)."
+                        )
+                        query5_answers = generate_answers(query5_answer)
+                        for att in query5_answers:
+                            # This excludes declarations that make variables into attribute types.
+                            # TODO: I don't know if this is useful, here. It's checking to see if there are any variables being returned as the value type, category, or attribute. But
+                            # I'm having difficulty figuring out why that was ever a concern. There is no way to generate a blawx_relationship statement with variables in it.
+                            # if not  re.search(r"^[A-Z_]\w*",att['Variables']['ValueType']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Category']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Attribute']):
+                            relationship_answers.append(
+                                {
+                                    "Relationship": att["Variables"]["Relationship"],
+                                    "Parameter1": att["Variables"]["Param1"],
+                                    "Parameter2": att["Variables"]["Param2"],
+                                    "Parameter3": att["Variables"]["Param3"],
+                                    "Parameter4": att["Variables"]["Param4"],
+                                    "Parameter5": att["Variables"]["Param5"],
+                                }
+                            )
+                        transcript.write(str(query5_answer) + "\n")
+                    except PrologError as err:
+                        if err.prolog().startswith("existence_error"):
+                            pass
+
+                    query6_answers = []
+                    try:
+                        query6_answer = swipl_thread.query(
+                            "blawxrun(blawx_relationship(Relationship,Param1,Param2,Param3,Param4,Param5,Param6),Human)."
+                        )
+                        query6_answers = generate_answers(query6_answer)
+                        for att in query6_answers:
+                            # This excludes declarations that make variables into attribute types.
+                            # TODO: I don't know if this is useful, here. It's checking to see if there are any variables being returned as the value type, category, or attribute. But
+                            # I'm having difficulty figuring out why that was ever a concern. There is no way to generate a blawx_relationship statement with variables in it.
+                            # if not  re.search(r"^[A-Z_]\w*",att['Variables']['ValueType']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Category']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Attribute']):
+                            relationship_answers.append(
+                                {
+                                    "Relationship": att["Variables"]["Relationship"],
+                                    "Parameter1": att["Variables"]["Param1"],
+                                    "Parameter2": att["Variables"]["Param2"],
+                                    "Parameter3": att["Variables"]["Param3"],
+                                    "Parameter4": att["Variables"]["Param4"],
+                                    "Parameter5": att["Variables"]["Param5"],
+                                    "Parameter6": att["Variables"]["Param6"],
+                                }
+                            )
+                        transcript.write(str(query6_answer) + "\n")
+                    except PrologError as err:
+                        if err.prolog().startswith("existence_error"):
+                            pass
+
+                    query7_answers = []
+                    try:
+                        query7_answer = swipl_thread.query(
+                            "blawxrun(blawx_relationship(Relationship,Param1,Param2,Param3,Param4,Param5,Param6,Param7),Human)."
+                        )
+                        query7_answers = generate_answers(query7_answer)
+                        for att in query7_answers:
+                            # This excludes declarations that make variables into attribute types.
+                            # TODO: I don't know if this is useful, here. It's checking to see if there are any variables being returned as the value type, category, or attribute. But
+                            # I'm having difficulty figuring out why that was ever a concern. There is no way to generate a blawx_relationship statement with variables in it.
+                            # if not  re.search(r"^[A-Z_]\w*",att['Variables']['ValueType']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Category']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Attribute']):
+                            relationship_answers.append(
+                                {
+                                    "Relationship": att["Variables"]["Relationship"],
+                                    "Parameter1": att["Variables"]["Param1"],
+                                    "Parameter2": att["Variables"]["Param2"],
+                                    "Parameter3": att["Variables"]["Param3"],
+                                    "Parameter4": att["Variables"]["Param4"],
+                                    "Parameter5": att["Variables"]["Param5"],
+                                    "Parameter6": att["Variables"]["Param6"],
+                                    "Parameter7": att["Variables"]["Param7"],
+                                }
+                            )
+                        transcript.write(str(query7_answer) + "\n")
+                    except PrologError as err:
+                        if err.prolog().startswith("existence_error"):
+                            pass
+
+                    query8_answers = []
+                    try:
+                        query8_answer = swipl_thread.query(
+                            "blawxrun(blawx_relationship(Relationship,Param1,Param2,Param3,Param4,Param5,Param6,Param7,Param8),Human)."
+                        )
+                        query8_answers = generate_answers(query8_answer)
+                        for att in query8_answers:
+                            # This excludes declarations that make variables into attribute types.
+                            # TODO: I don't know if this is useful, here. It's checking to see if there are any variables being returned as the value type, category, or attribute. But
+                            # I'm having difficulty figuring out why that was ever a concern. There is no way to generate a blawx_relationship statement with variables in it.
+                            # if not  re.search(r"^[A-Z_]\w*",att['Variables']['ValueType']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Category']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Attribute']):
+                            relationship_answers.append(
+                                {
+                                    "Relationship": att["Variables"]["Relationship"],
+                                    "Parameter1": att["Variables"]["Param1"],
+                                    "Parameter2": att["Variables"]["Param2"],
+                                    "Parameter3": att["Variables"]["Param3"],
+                                    "Parameter4": att["Variables"]["Param4"],
+                                    "Parameter5": att["Variables"]["Param5"],
+                                    "Parameter6": att["Variables"]["Param6"],
+                                    "Parameter7": att["Variables"]["Param7"],
+                                    "Parameter8": att["Variables"]["Param8"],
+                                }
+                            )
+                        transcript.write(str(query8_answer) + "\n")
+                    except PrologError as err:
+                        if err.prolog().startswith("existence_error"):
+                            pass
+
+                    query9_answers = []
+                    try:
+                        query9_answer = swipl_thread.query(
+                            "blawxrun(blawx_relationship(Relationship,Param1,Param2,Param3,Param4,Param5,Param6,Param7,Param8,Param9),Human)."
+                        )
+                        query9_answers = generate_answers(query9_answer)
+                        for att in query9_answers:
+                            # This excludes declarations that make variables into attribute types.
+                            # TODO: I don't know if this is useful, here. It's checking to see if there are any variables being returned as the value type, category, or attribute. But
+                            # I'm having difficulty figuring out why that was ever a concern. There is no way to generate a blawx_relationship statement with variables in it.
+                            # if not  re.search(r"^[A-Z_]\w*",att['Variables']['ValueType']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Category']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Attribute']):
+                            relationship_answers.append(
+                                {
+                                    "Relationship": att["Variables"]["Relationship"],
+                                    "Parameter1": att["Variables"]["Param1"],
+                                    "Parameter2": att["Variables"]["Param2"],
+                                    "Parameter3": att["Variables"]["Param3"],
+                                    "Parameter4": att["Variables"]["Param4"],
+                                    "Parameter5": att["Variables"]["Param5"],
+                                    "Parameter6": att["Variables"]["Param6"],
+                                    "Parameter7": att["Variables"]["Param7"],
+                                    "Parameter8": att["Variables"]["Param8"],
+                                    "Parameter9": att["Variables"]["Param9"],
+                                }
+                            )
+                        transcript.write(str(query9_answer) + "\n")
+                    except PrologError as err:
+                        if err.prolog().startswith("existence_error"):
+                            pass
+
+                    query10_answers = []
+                    try:
+                        query10_answer = swipl_thread.query(
+                            "blawxrun(blawx_relationship(Relationship,Param1,Param2,Param3,Param4,Param5,Param6,Param7,Param8,Param9,Param10),Human)."
+                        )
+                        query10_answers = generate_answers(query10_answer)
+                        for att in query10_answers:
+                            # This excludes declarations that make variables into attribute types.
+                            # TODO: I don't know if this is useful, here. It's checking to see if there are any variables being returned as the value type, category, or attribute. But
+                            # I'm having difficulty figuring out why that was ever a concern. There is no way to generate a blawx_relationship statement with variables in it.
+                            # if not  re.search(r"^[A-Z_]\w*",att['Variables']['ValueType']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Category']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Attribute']):
+                            relationship_answers.append(
+                                {
+                                    "Relationship": att["Variables"]["Relationship"],
+                                    "Parameter1": att["Variables"]["Param1"],
+                                    "Parameter2": att["Variables"]["Param2"],
+                                    "Parameter3": att["Variables"]["Param3"],
+                                    "Parameter4": att["Variables"]["Param4"],
+                                    "Parameter5": att["Variables"]["Param5"],
+                                    "Parameter6": att["Variables"]["Param6"],
+                                    "Parameter7": att["Variables"]["Param7"],
+                                    "Parameter8": att["Variables"]["Param8"],
+                                    "Parameter9": att["Variables"]["Param9"],
+                                    "Parameter10": att["Variables"]["Param10"],
+                                }
+                            )
+                        transcript.write(str(query10_answer) + "\n")
+                    except PrologError as err:
+                        if err.prolog().startswith("existence_error"):
+                            pass
+
+                    relationship_nlg = []
+                    for a in relationship_answers:
+                        try:
+                            query = (
+                                "blawxrun(blawx_relationship_nlg("
+                                + a["Relationship"]
+                                + ","
+                            )
+                            parameters = len(a) - 1
+                            param = 1
+                            while param <= parameters:
+                                query += "Prefix" + str(param) + ","
+                                param += 1
+                            query += "Postfix),Human)."
+                            rel_nlg_query_response = swipl_thread.query(query)
+                            rel_nlg_answers = generate_answers(rel_nlg_query_response)
+                            for relnlg in rel_nlg_answers:
+                                new_nlg = {
+                                    "Relationship": a["Relationship"],
+                                    "Postfix": relnlg["Variables"]["Postfix"],
+                                }
+                                param_count = 1
+                                while param_count <= parameters:
+                                    new_nlg["Prefix" + str(param_count)] = relnlg[
+                                        "Variables"
+                                    ]["Prefix" + str(param_count)]
+                                    param_count += 1
+                                relationship_nlg.append(new_nlg)
+                        except PrologError as err:
+                            if err.prolog().startswith("existence_error"):
+                                continue
+
+                    rel_facts = []
+                    for a in relationship_answers:
+                        try:
+                            query = "blawxrun(" + a["Relationship"] + "("
+                            parameters = len(a) - 1
+                            param = 1
+                            while param <= parameters:
+                                query += "Parameter" + str(param)
+                                if param < parameters:
+                                    query += ","
+                                param += 1
+                            query += "),Human)."
+                            rel_fact_query_response = swipl_thread.query(query)
+                            rel_fact_answers = generate_answers(rel_fact_query_response)
+                            for relfact in rel_fact_answers:
+                                new_fact = {"Relationship": a["Relationship"]}
+                                param_count = 1
+                                while param_count <= parameters:
+                                    new_fact["Parameter" + str(param_count)] = relfact[
+                                        "Variables"
+                                    ]["Parameter" + str(param_count)]
+                                    param_count += 1
+                                rel_facts.append(new_fact)
+                        except PrologError as err:
+                            if err.prolog().startswith("existence_error"):
+                                continue
+
+                    transcript.write(str(query1_answer) + "\n")
+                    object_query_answers = []
+                    for cat in query1_answers:
+                        category_name = cat["Variables"]["Category"]
+                        try:
+                            cat_query_response = swipl_thread.query(
+                                "blawxrun(" + category_name + "(Object),Human)."
+                            )
+                            transcript.write(str(cat_query_response) + "\n")
+                            cat_query_answers = generate_answers(cat_query_response)
+                            for answer in cat_query_answers:
+                                object_name = answer["Variables"]["Object"]
+                                # Do not add variables as objects
+                                if not re.search(r"^[A-Z_]\w*", object_name):
+                                    object_query_answers.append(
+                                        {
+                                            "Category": category_name,
+                                            "Object": object_name,
+                                        }
+                                    )
+                        except PrologError as err:
+                            if err.prolog().startswith("existence_error"):
+                                continue
+                    value_query_answers = []
                     for att in query2_answers:
-                      # This excludes declarations that make variables into attribute types.
-                      if not  re.search(r"^[A-Z_]\w*",att['Variables']['ValueType']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Category']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Attribute']):
-                        attribute_answers.append({"Category": att['Variables']['Category'], "Attribute": att['Variables']['Attribute'], "Type": att['Variables']['ValueType']})
-                    transcript.write(str(query2_answer) + '\n')
-                  except PrologError as err:
-                      if err.prolog().startswith('existence_error'):
-                        pass
-                  
-                  attribute_nlg = []
-                  for a in attribute_answers:
-                    try:
-                      att_nlg_query_response = swipl_thread.query("blawxrun(blawx_attribute_nlg(" + a['Attribute'] + ",Order,Prefix,Infix,Postfix),Human).")
-                    except PrologError as err:
-                      if err.prolog().startswith('existence_error'):
-                        continue
-                    att_nlg_query_answers = generate_answers(att_nlg_query_response)
-                    for anlga in att_nlg_query_answers:
-                      attribute_nlg.append({"Attribute": a['Attribute'], "Order": anlga['Variables']['Order'], "Prefix": anlga['Variables']['Prefix'], "Infix": anlga['Variables']['Infix'], "Postfix": anlga['Variables']['Postfix']})
+                        attribute_name = att["Variables"]["Attribute"]
+                        try:
+                            att_query_response = swipl_thread.query(
+                                "blawxrun(" + attribute_name + "(Object,Value),Human)."
+                            )
 
-                  relationship_answers = []
-                  query3_answers = []
-                  try:
-                    query3_answer = swipl_thread.query("blawxrun(blawx_relationship(Relationship,Param1,Param2,Param3),Human).")
-                    query3_answers = generate_answers(query3_answer)
-                    for att in query3_answers:
-                      # This excludes declarations that make variables into attribute types.
-                      # TODO: I don't know if this is useful, here. It's checking to see if there are any variables being returned as the value type, category, or attribute. But
-                      # I'm having difficulty figuring out why that was ever a concern. There is no way to generate a blawx_relationship statement with variables in it.
-                      #if not  re.search(r"^[A-Z_]\w*",att['Variables']['ValueType']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Category']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Attribute']):
-                      relationship_answers.append({"Relationship": att['Variables']['Relationship'], "Parameter1": att['Variables']['Param1'], "Parameter2": att['Variables']['Param2'], "Parameter3": att['Variables']['Param3']})
-                    transcript.write(str(query3_answer) + '\n')
-                  except PrologError as err:
-                      if err.prolog().startswith('existence_error'):
-                        pass
+                            transcript.write(str(att_query_response) + "\n")
+                            att_query_answers = generate_answers(att_query_response)
+                            for answer in att_query_answers:
+                                object_name = answer["Variables"]["Object"]
+                                value = answer["Variables"]["Value"]
+                                skip_value_variable_check = False
+                                # Right now, this returns a variable name as a value. It's not clear if this is something that
+                                # SHOULD be included in the data, and filtered out at the front end, making the API more complicated,
+                                # or if it should be filtered out here, simplifying the API, but making it impossible to know that
+                                # the generic statement has been made. For now, I will remove it at the API level.
+                                # Note that we are excluding partially and fully unground statements.
+                                # I think that converting the value to a string should work for everything, but it
+                                # is added specifically to deal with numbers.
+                                # I need to check and see if the thing is a date, and if it is, convert it to JSON format.
+                                if type(value) == dict and "functor" in value:
+                                    if value["functor"] == "date":
+                                        date = datetime.fromtimestamp(value["args"][0])
+                                        value = date.date().isoformat()
+                                    elif value["functor"] == "time":
+                                        time = time(value["args"][0], value["args"][1])
+                                        value = time.isoformat(timespec="minutes")
+                                    elif value["functor"] == "datetime":
+                                        date = datetime.fromtimestamp(value["args"][0])
+                                        value = date.isoformat(timespec="minutes")
+                                    elif value["functor"] == "duration":
+                                        timestamp = value["args"][0]
+                                        if timestamp < 0:
+                                            new_value = "-P"
+                                            timestamp = timestamp * -1
+                                        else:
+                                            new_value = "P"
+                                            skip_value_variable_check = True  # It starts with a capital P, but it is not a variable.
+                                        days = timestamp // 86400
+                                        timestamp_less_days = timestamp - days * 86400
+                                        if days:
+                                            new_value += str(days) + "D"
+                                        if timestamp_less_days:
+                                            new_value += "T"
+                                            hours = timestamp_less_days // 3600
+                                            timestamp_less_hours = (
+                                                timestamp_less_days - hours * 3600
+                                            )
+                                            if hours:
+                                                new_value += str(hours) + "H"
+                                            minutes = timestamp_less_hours // 60
+                                            seconds = (
+                                                timestamp_less_hours - minutes * 60
+                                            )
+                                            if minutes:
+                                                new_value += str(minutes) + "M"
+                                            if seconds:
+                                                new_value += str(seconds) + "S"
+                                        value = new_value
+                                # matches = re.findall(r"^date\((\d{4}),(\d{2}),(\d{2})\)$", str(value), re.MULTILINE)
+                                # if len(matches):
+                                #   (year,month,day) = matches[0]
+                                #   value = str(year) + '-' + str(month) + '-' + str(day)
+                                if not re.search(r"^[A-Z_]\w*", object_name) and (
+                                    skip_value_variable_check
+                                    or not re.search(r"^[A-Z_]\w*", str(value))
+                                ):
+                                    value_query_answers.append(
+                                        {
+                                            "Attribute": attribute_name,
+                                            "Object": object_name,
+                                            "Value": value,
+                                        }
+                                    )
+                        except PrologError as err:
+                            if err.prolog().startswith("existence_error"):
+                                continue
 
-                  query4_answers = []
-                  try:
-                    query4_answer = swipl_thread.query("blawxrun(blawx_relationship(Relationship,Param1,Param2,Param3,Param4),Human).")
-                    query4_answers = generate_answers(query4_answer)
-                    for att in query4_answers:
-                      # This excludes declarations that make variables into attribute types.
-                      # TODO: I don't know if this is useful, here. It's checking to see if there are any variables being returned as the value type, category, or attribute. But
-                      # I'm having difficulty figuring out why that was ever a concern. There is no way to generate a blawx_relationship statement with variables in it.
-                      #if not  re.search(r"^[A-Z_]\w*",att['Variables']['ValueType']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Category']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Attribute']):
-                      relationship_answers.append({"Relationship": att['Variables']['Relationship'], "Parameter1": att['Variables']['Param1'], "Parameter2": att['Variables']['Param2'], "Parameter3": att['Variables']['Param3'], "Parameter4": att['Variables']['Param4']})
-                    transcript.write(str(query4_answer) + '\n')
-                  except PrologError as err:
-                      if err.prolog().startswith('existence_error'):
-                        pass
-
-
-                  query5_answers = []
-                  try:
-                    query5_answer = swipl_thread.query("blawxrun(blawx_relationship(Relationship,Param1,Param2,Param3,Param4,Param5),Human).")
-                    query5_answers = generate_answers(query5_answer)
-                    for att in query5_answers:
-                      # This excludes declarations that make variables into attribute types.
-                      # TODO: I don't know if this is useful, here. It's checking to see if there are any variables being returned as the value type, category, or attribute. But
-                      # I'm having difficulty figuring out why that was ever a concern. There is no way to generate a blawx_relationship statement with variables in it.
-                      #if not  re.search(r"^[A-Z_]\w*",att['Variables']['ValueType']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Category']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Attribute']):
-                      relationship_answers.append({"Relationship": att['Variables']['Relationship'], "Parameter1": att['Variables']['Param1'], "Parameter2": att['Variables']['Param2'], "Parameter3": att['Variables']['Param3'], "Parameter4": att['Variables']['Param4'], "Parameter5": att['Variables']['Param5']})
-                    transcript.write(str(query5_answer) + '\n')
-                  except PrologError as err:
-                      if err.prolog().startswith('existence_error'):
-                        pass
-
-
-                  query6_answers = []
-                  try:
-                    query6_answer = swipl_thread.query("blawxrun(blawx_relationship(Relationship,Param1,Param2,Param3,Param4,Param5,Param6),Human).")
-                    query6_answers = generate_answers(query6_answer)
-                    for att in query6_answers:
-                      # This excludes declarations that make variables into attribute types.
-                      # TODO: I don't know if this is useful, here. It's checking to see if there are any variables being returned as the value type, category, or attribute. But
-                      # I'm having difficulty figuring out why that was ever a concern. There is no way to generate a blawx_relationship statement with variables in it.
-                      #if not  re.search(r"^[A-Z_]\w*",att['Variables']['ValueType']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Category']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Attribute']):
-                      relationship_answers.append({"Relationship": att['Variables']['Relationship'], "Parameter1": att['Variables']['Param1'], "Parameter2": att['Variables']['Param2'], "Parameter3": att['Variables']['Param3'], "Parameter4": att['Variables']['Param4'], "Parameter5": att['Variables']['Param5'], "Parameter6": att['Variables']['Param6']})
-                    transcript.write(str(query6_answer) + '\n')
-                  except PrologError as err:
-                      if err.prolog().startswith('existence_error'):
-                        pass
-
-
-                  query7_answers = []
-                  try:
-                    query7_answer = swipl_thread.query("blawxrun(blawx_relationship(Relationship,Param1,Param2,Param3,Param4,Param5,Param6,Param7),Human).")
-                    query7_answers = generate_answers(query7_answer)
-                    for att in query7_answers:
-                      # This excludes declarations that make variables into attribute types.
-                      # TODO: I don't know if this is useful, here. It's checking to see if there are any variables being returned as the value type, category, or attribute. But
-                      # I'm having difficulty figuring out why that was ever a concern. There is no way to generate a blawx_relationship statement with variables in it.
-                      #if not  re.search(r"^[A-Z_]\w*",att['Variables']['ValueType']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Category']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Attribute']):
-                      relationship_answers.append({"Relationship": att['Variables']['Relationship'], "Parameter1": att['Variables']['Param1'], "Parameter2": att['Variables']['Param2'], "Parameter3": att['Variables']['Param3'], "Parameter4": att['Variables']['Param4'], "Parameter5": att['Variables']['Param5'], "Parameter6": att['Variables']['Param6'], "Parameter7": att['Variables']['Param7']})
-                    transcript.write(str(query7_answer) + '\n')
-                  except PrologError as err:
-                      if err.prolog().startswith('existence_error'):
-                        pass
-
-
-                  query8_answers = []
-                  try:
-                    query8_answer = swipl_thread.query("blawxrun(blawx_relationship(Relationship,Param1,Param2,Param3,Param4,Param5,Param6,Param7,Param8),Human).")
-                    query8_answers = generate_answers(query8_answer)
-                    for att in query8_answers:
-                      # This excludes declarations that make variables into attribute types.
-                      # TODO: I don't know if this is useful, here. It's checking to see if there are any variables being returned as the value type, category, or attribute. But
-                      # I'm having difficulty figuring out why that was ever a concern. There is no way to generate a blawx_relationship statement with variables in it.
-                      #if not  re.search(r"^[A-Z_]\w*",att['Variables']['ValueType']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Category']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Attribute']):
-                      relationship_answers.append({"Relationship": att['Variables']['Relationship'], "Parameter1": att['Variables']['Param1'], "Parameter2": att['Variables']['Param2'], "Parameter3": att['Variables']['Param3'], "Parameter4": att['Variables']['Param4'], "Parameter5": att['Variables']['Param5'], "Parameter6": att['Variables']['Param6'], "Parameter7": att['Variables']['Param7'], "Parameter8": att['Variables']['Param8']})
-                    transcript.write(str(query8_answer) + '\n')
-                  except PrologError as err:
-                      if err.prolog().startswith('existence_error'):
-                        pass
-
-
-                  query9_answers = []
-                  try:
-                    query9_answer = swipl_thread.query("blawxrun(blawx_relationship(Relationship,Param1,Param2,Param3,Param4,Param5,Param6,Param7,Param8,Param9),Human).")
-                    query9_answers = generate_answers(query9_answer)
-                    for att in query9_answers:
-                      # This excludes declarations that make variables into attribute types.
-                      # TODO: I don't know if this is useful, here. It's checking to see if there are any variables being returned as the value type, category, or attribute. But
-                      # I'm having difficulty figuring out why that was ever a concern. There is no way to generate a blawx_relationship statement with variables in it.
-                      #if not  re.search(r"^[A-Z_]\w*",att['Variables']['ValueType']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Category']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Attribute']):
-                      relationship_answers.append({"Relationship": att['Variables']['Relationship'], "Parameter1": att['Variables']['Param1'], "Parameter2": att['Variables']['Param2'], "Parameter3": att['Variables']['Param3'], "Parameter4": att['Variables']['Param4'], "Parameter5": att['Variables']['Param5'], "Parameter6": att['Variables']['Param6'], "Parameter7": att['Variables']['Param7'], "Parameter8": att['Variables']['Param8'], "Parameter9": att['Variables']['Param9']})
-                    transcript.write(str(query9_answer) + '\n')
-                  except PrologError as err:
-                      if err.prolog().startswith('existence_error'):
-                        pass
-
-                  query10_answers = []
-                  try:
-                    query10_answer = swipl_thread.query("blawxrun(blawx_relationship(Relationship,Param1,Param2,Param3,Param4,Param5,Param6,Param7,Param8,Param9,Param10),Human).")
-                    query10_answers = generate_answers(query10_answer)
-                    for att in query10_answers:
-                      # This excludes declarations that make variables into attribute types.
-                      # TODO: I don't know if this is useful, here. It's checking to see if there are any variables being returned as the value type, category, or attribute. But
-                      # I'm having difficulty figuring out why that was ever a concern. There is no way to generate a blawx_relationship statement with variables in it.
-                      #if not  re.search(r"^[A-Z_]\w*",att['Variables']['ValueType']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Category']) and not re.search(r"^[A-Z_]\w*",att['Variables']['Attribute']):
-                      relationship_answers.append({"Relationship": att['Variables']['Relationship'], "Parameter1": att['Variables']['Param1'], "Parameter2": att['Variables']['Param2'], "Parameter3": att['Variables']['Param3'], "Parameter4": att['Variables']['Param4'], "Parameter5": att['Variables']['Param5'], "Parameter6": att['Variables']['Param6'], "Parameter7": att['Variables']['Param7'], "Parameter8": att['Variables']['Param8'], "Parameter9": att['Variables']['Param9'], "Parameter10": att['Variables']['Param10']})
-                    transcript.write(str(query10_answer) + '\n')
-                  except PrologError as err:
-                      if err.prolog().startswith('existence_error'):
-                        pass
-
-                  relationship_nlg = []
-                  for a in relationship_answers:
-                    try:
-                      query = "blawxrun(blawx_relationship_nlg(" + a['Relationship'] + ","
-                      parameters = len(a)-1
-                      param = 1
-                      while param <= parameters:
-                        query += 'Prefix'+str(param) + ","
-                        param += 1
-                      query += "Postfix),Human)."
-                      rel_nlg_query_response = swipl_thread.query(query)
-                      rel_nlg_answers = generate_answers(rel_nlg_query_response)
-                      for relnlg in rel_nlg_answers:
-                        new_nlg = {"Relationship": a['Relationship'], "Postfix": relnlg['Variables']['Postfix']}
-                        param_count = 1
-                        while param_count <= parameters:
-                          new_nlg['Prefix'+str(param_count)] = relnlg['Variables']['Prefix'+str(param_count)]
-                          param_count += 1
-                        relationship_nlg.append(new_nlg)
-                    except PrologError as err:
-                      if err.prolog().startswith('existence_error'):
-                        continue
-
-                  rel_facts = []
-                  for a in relationship_answers:
-                    try:
-                      query = "blawxrun(" + a['Relationship'] + "("
-                      parameters = len(a)-1
-                      param = 1
-                      while param <= parameters:
-                        query += 'Parameter'+str(param)
-                        if param < parameters:
-                          query += ","
-                        param += 1
-                      query += "),Human)."
-                      rel_fact_query_response = swipl_thread.query(query)
-                      rel_fact_answers = generate_answers(rel_fact_query_response)
-                      for relfact in rel_fact_answers:
-                        new_fact = {"Relationship": a['Relationship']}
-                        param_count = 1
-                        while param_count <= parameters:
-                          new_fact['Parameter'+str(param_count)] = relfact['Variables']['Parameter'+str(param_count)]
-                          param_count += 1
-                        rel_facts.append(new_fact)
-                    except PrologError as err:
-                      if err.prolog().startswith('existence_error'):
-                        continue
-
-                  transcript.write(str(query1_answer) + '\n')
-                  object_query_answers = []
-                  for cat in query1_answers:
-                    category_name = cat['Variables']['Category']
-                    try:
-                      cat_query_response = swipl_thread.query("blawxrun(" + category_name + "(Object),Human).")
-                      transcript.write(str(cat_query_response) + '\n')
-                      cat_query_answers = generate_answers(cat_query_response)
-                      for answer in cat_query_answers:
-                        object_name = answer['Variables']['Object']
-                        # Do not add variables as objects
-                        if not re.search(r"^[A-Z_]\w*",object_name):
-                          object_query_answers.append({"Category": category_name, "Object": object_name})
-                    except PrologError as err:
-                      if err.prolog().startswith('existence_error'):
-                        continue
-                  value_query_answers = []
-                  for att in query2_answers:
-                    attribute_name = att['Variables']['Attribute']
-                    try:
-                      att_query_response = swipl_thread.query("blawxrun(" + attribute_name + "(Object,Value),Human).")
-                    
-                      transcript.write(str(att_query_response) + '\n')
-                      att_query_answers = generate_answers(att_query_response)
-                      for answer in att_query_answers:
-                        object_name = answer['Variables']['Object']
-                        value = answer['Variables']['Value']
-                        skip_value_variable_check = False
-                        # Right now, this returns a variable name as a value. It's not clear if this is something that
-                        # SHOULD be included in the data, and filtered out at the front end, making the API more complicated,
-                        # or if it should be filtered out here, simplifying the API, but making it impossible to know that
-                        # the generic statement has been made. For now, I will remove it at the API level.
-                        # Note that we are excluding partially and fully unground statements.
-                        # I think that converting the value to a string should work for everything, but it
-                        # is added specifically to deal with numbers.
-                        # I need to check and see if the thing is a date, and if it is, convert it to JSON format.
-                        if type(value) == dict and 'functor' in value:
-                          if value['functor'] == 'date':
-                            date = datetime.fromtimestamp(value['args'][0])
-                            value = date.date().isoformat()
-                          elif value['functor'] == 'time':
-                            time = time(value['args'][0],value['args'][1])
-                            value = time.isoformat(timespec='minutes')
-                          elif value['functor'] == 'datetime':
-                            date = datetime.fromtimestamp(value['args'][0])
-                            value = date.isoformat(timespec='minutes')
-                          elif value['functor'] == 'duration':
-                            timestamp = value['args'][0]
-                            if timestamp < 0:
-                              new_value = "-P"
-                              timestamp = timestamp * -1
-                            else:
-                              new_value = "P"
-                              skip_value_variable_check = True #It starts with a capital P, but it is not a variable.
-                            days = timestamp // 86400
-                            timestamp_less_days = timestamp - days*86400
-                            if days:
-                              new_value += str(days) + "D"
-                            if timestamp_less_days:
-                              new_value += "T"
-                              hours = timestamp_less_days // 3600
-                              timestamp_less_hours = timestamp_less_days - hours*3600
-                              if hours:
-                                new_value += str(hours) + "H"
-                              minutes = timestamp_less_hours // 60
-                              seconds = timestamp_less_hours - minutes*60
-                              if minutes:
-                                new_value += str(minutes) + "M"
-                              if seconds:
-                                new_value += str(seconds) + "S"
-                            value = new_value
-                        # matches = re.findall(r"^date\((\d{4}),(\d{2}),(\d{2})\)$", str(value), re.MULTILINE)
-                        # if len(matches):
-                        #   (year,month,day) = matches[0]
-                        #   value = str(year) + '-' + str(month) + '-' + str(day)
-                        if not re.search(r"^[A-Z_]\w*",object_name) and (skip_value_variable_check or not re.search(r"^[A-Z_]\w*",str(value))):
-                          value_query_answers.append({"Attribute": attribute_name, "Object": object_name, "Value": value})
-                    except PrologError as err:
-                      if err.prolog().startswith('existence_error'):
-                        continue
-
-              transcript.close()
-              transcript = open(transcript_name,'r')
-              # transcript = open("transcript",'r')
-              transcript_output = transcript.read()
-              transcript.close()
-              #os.remove(transcript_name)
+                transcript.close()
+                transcript = open(transcript_name, "r")
+                # transcript = open("transcript",'r')
+                transcript_output = transcript.read()
+                transcript.close()
+                # os.remove(transcript_name)
     except PrologError as err:
-      return { "error": "There was an error while running the code.", "transcript": err.prolog() }
+        return {
+            "error": "There was an error while running the code.",
+            "transcript": err.prolog(),
+        }
     except PrologLaunchError as err:
-      return { "error": "Blawx could not load the reasoner." }
+        return {"error": "Blawx could not load the reasoner."}
     # Return the results as JSON
-    return { "Categories": category_answers, "CategoryNLG": category_nlg, "Attributes": attribute_answers, "AttributeNLG": attribute_nlg, "Relationships": relationship_answers, "RelationshipNLG": relationship_nlg, "Objects": object_query_answers, "Values": value_query_answers, "Relations": rel_facts, "Transcript": transcript_output }
+    return {
+        "Categories": category_answers,
+        "CategoryNLG": category_nlg,
+        "Attributes": attribute_answers,
+        "AttributeNLG": attribute_nlg,
+        "Relationships": relationship_answers,
+        "RelationshipNLG": relationship_nlg,
+        "Objects": object_query_answers,
+        "Values": value_query_answers,
+        "Relations": rel_facts,
+        "Transcript": transcript_output,
+    }
 
-@api_view(['GET'])
+
+@api_view(["GET"])
 @authentication_classes([SessionAuthentication])
 @permission_classes([IsAuthenticatedOrReadOnly])
-def get_ontology(request,user,rule,test_name):
+def get_ontology(request, user, rule, test_name):
     owner = User.objects.get(username=user)
-    ruledoctest = RuleDoc.objects.get(rule_slug=rule,owner=owner)
-    if request.user.has_perm('blawx.view_ruledoc',ruledoctest):
-      test = BlawxTest.objects.get(ruledoc=RuleDoc.objects.get(rule_slug=rule,owner=owner),test_name=test_name)
-      result = get_ontology_internal(user,rule,test_name)
-      if test.view == "":
-        result['View'] = test.view
-      else:
-        result['View'] = json.loads(test.view.replace('\'','\"'))
-      if test.fact_scenario == "":
-        result['Facts'] = test.fact_scenario
-      else:
-        result['Facts'] = json.loads(test.fact_scenario.replace('\'','\"').replace("True","true").replace("False","false"))
-      return Response(result)
+    ruledoctest = RuleDoc.objects.get(rule_slug=rule, owner=owner)
+    if request.user.has_perm("blawx.view_ruledoc", ruledoctest):
+        test = BlawxTest.objects.get(
+            ruledoc=RuleDoc.objects.get(rule_slug=rule, owner=owner),
+            test_name=test_name,
+        )
+        result = get_ontology_internal(user, rule, test_name)
+        if test.view == "":
+            result["View"] = test.view
+        else:
+            result["View"] = json.loads(test.view.replace("'", '"'))
+        if test.fact_scenario == "":
+            result["Facts"] = test.fact_scenario
+        else:
+            result["Facts"] = json.loads(
+                test.fact_scenario.replace("'", '"')
+                .replace("True", "true")
+                .replace("False", "false")
+            )
+        return Response(result)
     else:
-      return HttpResponseForbidden()
+        return HttpResponseForbidden()
+
 
 def simplify_rule(rule):
-  # Find all of the variables.
-  variables = get_variables(rule)
-  # Give each variable a replacement in the order in which they appear.
-  replacements = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q']
-  # Replace all instances of each variable with its replacement.
-  for index, var in enumerate(variables):
-    rule = rule.replace(var,replacements[index])
-  return rule
+    # Find all of the variables.
+    variables = get_variables(rule)
+    # Give each variable a replacement in the order in which they appear.
+    replacements = [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H",
+        "I",
+        "J",
+        "K",
+        "L",
+        "M",
+        "N",
+        "O",
+        "P",
+        "Q",
+    ]
+    # Replace all instances of each variable with its replacement.
+    for index, var in enumerate(variables):
+        rule = rule.replace(var, replacements[index])
+    return rule
 
-@api_view(['POST'])
+
+@api_view(["POST"])
 @authentication_classes([SessionAuthentication])
 @permission_classes([AllowAny])
-def interview(request,user,rule,test_name):
-    #print("Dealing with interview request.\n")
+def interview(request, user, rule, test_name):
+    # print("Dealing with interview request.\n")
     owner = User.objects.get(username=user)
-    test = BlawxTest.objects.get(ruledoc=RuleDoc.objects.get(rule_slug=rule,owner=owner),test_name=test_name)
-    if request.user.has_perm('blawx.run',test):
-      
-      
-#       rulefile = tempfile.NamedTemporaryFile('w',delete=False)
-#       rulefile.write("""
-# :- use_module(library(scasp)).
-# :- use_module(library(scasp/human)).
-# :- use_module(library(scasp/output)).
+    test = BlawxTest.objects.get(
+        ruledoc=RuleDoc.objects.get(rule_slug=rule, owner=owner), test_name=test_name
+    )
+    if request.user.has_perm("blawx.run", test):
 
-#       rulefile = tempfile.NamedTemporaryFile('w',delete=False)
-#       rulefile.write("""
-# :- use_module(library(scasp)).
-# :- use_module(library(scasp/human)).
-# :- use_module(library(scasp/output)).
+        #       rulefile = tempfile.NamedTemporaryFile('w',delete=False)
+        #       rulefile.write("""
+        # :- use_module(library(scasp)).
+        # :- use_module(library(scasp/human)).
+        # :- use_module(library(scasp/output)).
 
+        #       rulefile = tempfile.NamedTemporaryFile('w',delete=False)
+        #       rulefile.write("""
+        # :- use_module(library(scasp)).
+        # :- use_module(library(scasp/human)).
+        # :- use_module(library(scasp/output)).
 
-#       rulefile.write(ruleset + '\n')
+        #       rulefile.write(ruleset + '\n')
 
-      # ruleset_lines = [line.replace(' ','') for line in ruleset.splitlines()]
-      # test_lines = [line.replace(' ','') for line in test.scasp_encoding.splitlines()]
-      # for fact in translated_facts.splitlines():
-      #   if fact.replace(' ','') not in ruleset_lines and fact.replace(' ','') not in test_lines:
-      #     rulefile.write(fact + '\n')
-      # # rulefile.write(translated_facts)
-      # rulefile.close()
-      # rulefilename = rulefile.name
-      # temprulefile = open(rulefilename,'r')
-      # # print(temprulefile.read())
-      # temprulefile.close()
+        # ruleset_lines = [line.replace(' ','') for line in ruleset.splitlines()]
+        # test_lines = [line.replace(' ','') for line in test.scasp_encoding.splitlines()]
+        # for fact in translated_facts.splitlines():
+        #   if fact.replace(' ','') not in ruleset_lines and fact.replace(' ','') not in test_lines:
+        #     rulefile.write(fact + '\n')
+        # # rulefile.write(translated_facts)
+        # rulefile.close()
+        # rulefilename = rulefile.name
+        # temprulefile = open(rulefilename,'r')
+        # # print(temprulefile.read())
+        # temprulefile.close()
 
-      # Start the Prolog "thread"
-      # try: 
-      #   with PrologMQI() as swipl:
-      #       with swipl.create_thread() as swipl_thread:
+        # Start the Prolog "thread"
+        # try:
+        #   with PrologMQI() as swipl:
+        #       with swipl.create_thread() as swipl_thread:
 
-      #           transcript = tempfile.NamedTemporaryFile('w',delete=False,prefix="transcript_")
-      #           transcript_name = transcript.name
+        #           transcript = tempfile.NamedTemporaryFile('w',delete=False,prefix="transcript_")
+        #           transcript_name = transcript.name
 
-      #           with redirect_stderr(transcript):
-      #               load_file_answer = swipl_thread.query("['" + rulefilename + "'].")
-      #           print("Loading generated Prolog code: " + str(load_file_answer))
-      #           transcript.write(str(load_file_answer) + '\n')
-      #           if os.path.exists(rulefilename):
-      #               rules = open(rulefilename)
-      #               rulestext = rules.read()
-      #               transcript.write(rulestext + '\n')
-      #               rules.close()
-      #               os.remove(rulefilename)
+        #           with redirect_stderr(transcript):
+        #               load_file_answer = swipl_thread.query("['" + rulefilename + "'].")
+        #           print("Loading generated Prolog code: " + str(load_file_answer))
+        #           transcript.write(str(load_file_answer) + '\n')
+        #           if os.path.exists(rulefilename):
+        #               rules = open(rulefilename)
+        #               rulestext = rules.read()
+        #               transcript.write(rulestext + '\n')
+        #               rules.close()
+        #               os.remove(rulefilename)
 
-      #           with redirect_stderr(transcript):
-      #               # print("blawxrun(" + query + ",Human).")
-      #               query_answer = swipl_thread.query("blawxrun(" + query + ",Human).")
-      #           print("Running query " + query + ":")
-      #           print(str(query_answer))
-      #           transcript.write(str(query_answer) + '\n')
+        #           with redirect_stderr(transcript):
+        #               # print("blawxrun(" + query + ",Human).")
+        #               query_answer = swipl_thread.query("blawxrun(" + query + ",Human).")
+        #           print("Running query " + query + ":")
+        #           print(str(query_answer))
+        #           transcript.write(str(query_answer) + '\n')
 
-      #           transcript.close()
-      #           transcript = open(transcript_name,'r')
-      #           transcript_output = transcript.read()
-      #           transcript.close()
-      #           os.remove(transcript_name)
-      # except PrologError as err:
-      #   return Response({ "error": "There was an error while running the code.", "transcript": err.prolog() })
-      # except PrologLaunchError as err:
-      #   query_answer = "Blawx could not load the reasoner."
-      #   return Response({ "error": "Blawx could not load the reasoner." })
-      
-      
-#       rulefile.write(ruleset + '\n')
+        #           transcript.close()
+        #           transcript = open(transcript_name,'r')
+        #           transcript_output = transcript.read()
+        #           transcript.close()
+        #           os.remove(transcript_name)
+        # except PrologError as err:
+        #   return Response({ "error": "There was an error while running the code.", "transcript": err.prolog() })
+        # except PrologLaunchError as err:
+        #   query_answer = "Blawx could not load the reasoner."
+        #   return Response({ "error": "Blawx could not load the reasoner." })
 
-      # ruleset_lines = [line.replace(' ','') for line in ruleset.splitlines()]
-      # test_lines = [line.replace(' ','') for line in test.scasp_encoding.splitlines()]
-      # for fact in translated_facts.splitlines():
-      #   if fact.replace(' ','') not in ruleset_lines and fact.replace(' ','') not in test_lines:
-      #     rulefile.write(fact + '\n')
-      # # rulefile.write(translated_facts)
-      # rulefile.close()
-      # rulefilename = rulefile.name
-      # temprulefile = open(rulefilename,'r')
-      # # print(temprulefile.read())
-      # temprulefile.close()
+        #       rulefile.write(ruleset + '\n')
 
-      # Start the Prolog "thread"
-      # try: 
-      #   with PrologMQI() as swipl:
-      #       with swipl.create_thread() as swipl_thread:
+        # ruleset_lines = [line.replace(' ','') for line in ruleset.splitlines()]
+        # test_lines = [line.replace(' ','') for line in test.scasp_encoding.splitlines()]
+        # for fact in translated_facts.splitlines():
+        #   if fact.replace(' ','') not in ruleset_lines and fact.replace(' ','') not in test_lines:
+        #     rulefile.write(fact + '\n')
+        # # rulefile.write(translated_facts)
+        # rulefile.close()
+        # rulefilename = rulefile.name
+        # temprulefile = open(rulefilename,'r')
+        # # print(temprulefile.read())
+        # temprulefile.close()
 
-      #           transcript = tempfile.NamedTemporaryFile('w',delete=False,prefix="transcript_")
-      #           transcript_name = transcript.name
+        # Start the Prolog "thread"
+        # try:
+        #   with PrologMQI() as swipl:
+        #       with swipl.create_thread() as swipl_thread:
 
-      #           with redirect_stderr(transcript):
-      #               load_file_answer = swipl_thread.query("['" + rulefilename + "'].")
-      #           print("Loading generated Prolog code: " + str(load_file_answer))
-      #           transcript.write(str(load_file_answer) + '\n')
-      #           if os.path.exists(rulefilename):
-      #               rules = open(rulefilename)
-      #               rulestext = rules.read()
-      #               transcript.write(rulestext + '\n')
-      #               rules.close()
-      #               os.remove(rulefilename)
+        #           transcript = tempfile.NamedTemporaryFile('w',delete=False,prefix="transcript_")
+        #           transcript_name = transcript.name
 
-      #           with redirect_stderr(transcript):
-      #               # print("blawxrun(" + query + ",Human).")
-      #               query_answer = swipl_thread.query("blawxrun(" + query + ",Human).")
-      #           print("Running query " + query + ":")
-      #           print(str(query_answer))
-      #           transcript.write(str(query_answer) + '\n')
+        #           with redirect_stderr(transcript):
+        #               load_file_answer = swipl_thread.query("['" + rulefilename + "'].")
+        #           print("Loading generated Prolog code: " + str(load_file_answer))
+        #           transcript.write(str(load_file_answer) + '\n')
+        #           if os.path.exists(rulefilename):
+        #               rules = open(rulefilename)
+        #               rulestext = rules.read()
+        #               transcript.write(rulestext + '\n')
+        #               rules.close()
+        #               os.remove(rulefilename)
 
-      #           transcript.close()
-      #           transcript = open(transcript_name,'r')
-      #           transcript_output = transcript.read()
-      #           transcript.close()
-      #           os.remove(transcript_name)
-      # except PrologError as err:
-      #   return Response({ "error": "There was an error while running the code.", "transcript": err.prolog() })
-      # except PrologLaunchError as err:
-      #   query_answer = "Blawx could not load the reasoner."
-      #   return Response({ "error": "Blawx could not load the reasoner." })
-      
-      # Now get the ontology information to be able to generate the relevance data
-      # Effectively, we're going to start over.
-      translated_facts = ""
-      if request.data:
-        translated_facts = even_newer_json_2_scasp(request.data, user, rule, test_name) #Generate answers INCLUDING assumptions in the submitted data
-      
-      owner = User.objects.get(username=user)
-      wss = Workspace.objects.filter(ruledoc=RuleDoc.objects.get(rule_slug=rule,owner=owner))
-      test = BlawxTest.objects.get(ruledoc=RuleDoc.objects.get(rule_slug=rule,owner=owner),test_name=test_name)
-      ruleset = ""
-      unique_rules = []
-      for ws in wss:
-        # Go line by line through the code in each workspace. If the line is "% BLAWX CHECK DUPLICATE" then ignore that line and simplify the next line,
-        ruleset += "\n\n"
-        workspace_lines = ws.scasp_encoding.splitlines()
-        register_duplicate = False
-        for line in workspace_lines:
-          if line == "% BLAWX CHECK DUPLICATES":
-            register_duplicate = True
-            continue
-          elif register_duplicate == True:
-            # and add it to a checked list if it's not already in the list.
+        #           with redirect_stderr(transcript):
+        #               # print("blawxrun(" + query + ",Human).")
+        #               query_answer = swipl_thread.query("blawxrun(" + query + ",Human).")
+        #           print("Running query " + query + ":")
+        #           print(str(query_answer))
+        #           transcript.write(str(query_answer) + '\n')
+
+        #           transcript.close()
+        #           transcript = open(transcript_name,'r')
+        #           transcript_output = transcript.read()
+        #           transcript.close()
+        #           os.remove(transcript_name)
+        # except PrologError as err:
+        #   return Response({ "error": "There was an error while running the code.", "transcript": err.prolog() })
+        # except PrologLaunchError as err:
+        #   query_answer = "Blawx could not load the reasoner."
+        #   return Response({ "error": "Blawx could not load the reasoner." })
+
+        # Now get the ontology information to be able to generate the relevance data
+        # Effectively, we're going to start over.
+        translated_facts = ""
+        if request.data:
+            translated_facts = even_newer_json_2_scasp(
+                request.data, user, rule, test_name
+            )  # Generate answers INCLUDING assumptions in the submitted data
+
+        owner = User.objects.get(username=user)
+        wss = Workspace.objects.filter(
+            ruledoc=RuleDoc.objects.get(rule_slug=rule, owner=owner)
+        )
+        test = BlawxTest.objects.get(
+            ruledoc=RuleDoc.objects.get(rule_slug=rule, owner=owner),
+            test_name=test_name,
+        )
+        ruleset = ""
+        unique_rules = []
+        for ws in wss:
+            # Go line by line through the code in each workspace. If the line is "% BLAWX CHECK DUPLICATE" then ignore that line and simplify the next line,
+            ruleset += "\n\n"
+            workspace_lines = ws.scasp_encoding.splitlines()
             register_duplicate = False
-            simplified_line = simplify_rule(line)
-            if simplified_line not in unique_rules:
-              unique_rules.append(simplified_line)
-            continue
-          else:
-            # Otherwise, add it to the code.
-            ruleset += line + "\n"
+            for line in workspace_lines:
+                if line == "% BLAWX CHECK DUPLICATES":
+                    register_duplicate = True
+                    continue
+                elif register_duplicate == True:
+                    # and add it to a checked list if it's not already in the list.
+                    register_duplicate = False
+                    simplified_line = simplify_rule(line)
+                    if simplified_line not in unique_rules:
+                        unique_rules.append(simplified_line)
+                    continue
+                else:
+                    # Otherwise, add it to the code.
+                    ruleset += line + "\n"
 
-        
-      # do the same thing for the test.
-      ruleset += "\n\n"
-      test_lines = test.scasp_encoding.splitlines()
-      register_duplicate = False
-      for line in test_lines:
-        if line == "% BLAWX CHECK DUPLICATES":
-          register_duplicate = True
-          continue
-        elif register_duplicate == True:
-          register_duplicate = False
-          simplified_line = simplify_rule(line)
-          if simplified_line not in unique_rules:
-            unique_rules.append(simplified_line)
-          continue
-        else:
-          ruleset += line + "\n"
+        # do the same thing for the test.
+        ruleset += "\n\n"
+        test_lines = test.scasp_encoding.splitlines()
+        register_duplicate = False
+        for line in test_lines:
+            if line == "% BLAWX CHECK DUPLICATES":
+                register_duplicate = True
+                continue
+            elif register_duplicate == True:
+                register_duplicate = False
+                simplified_line = simplify_rule(line)
+                if simplified_line not in unique_rules:
+                    unique_rules.append(simplified_line)
+                continue
+            else:
+                ruleset += line + "\n"
 
-      # Now add all the checked duplicate rules.
-      for ur in unique_rules:
-        ruleset += ur + "\n"
-      
-      
-      rulefile = tempfile.NamedTemporaryFile('w',delete=False)
-      rulefile.write("""
+        # Now add all the checked duplicate rules.
+        for ur in unique_rules:
+            ruleset += ur + "\n"
+
+        rulefile = tempfile.NamedTemporaryFile("w", delete=False)
+        rulefile.write(
+            """
 :- use_module(library(scasp)).
 :- use_module(library(scasp/human)).
 :- use_module(library(scasp/output)).
 
 :- meta_predicate
     blawxrun2(0,-).
-""")
+"""
+        )
 
-      query = "No Query Specified"
-      for line in test.scasp_encoding.splitlines():
-          if line.startswith("?- "):
-              query = line[3:-1] # remove query prompt and period.
+        query = "No Query Specified"
+        for line in test.scasp_encoding.splitlines():
+            if line.startswith("?- "):
+                query = line[3:-1]  # remove query prompt and period.
 
-      rulefile.write("""
+        rulefile.write(
+            """
 blawxrun(Query, Human, Tree, Model) :-
     scasp(Query,[tree(Tree),model(Model),source(false)]),
     ovar_analyze_term(t(Query, Tree),[name_constraints(true)]),
@@ -1246,224 +1555,285 @@ blawxrun(Query, Human, Tree, Model) :-
               human_justification_tree(Tree,[])).
     %term_attvars(Query, AttVars),
     %maplist(del_attrs, AttVars).
-""")
+"""
+        )
 
-      rulefile.write(blawx_passthrough + '\n\n')
-      rulefile.write(ldap_code + '\n\n')
-      rulefile.write(scasp_dates + '\n\n')
-      rulefile.write(scasp_now + '\n\n')
-      rulefile.write(scasp_aggregates + '\n\n')
-      rulefile.write(ec_code + '\n\n')
+        rulefile.write(blawx_passthrough + "\n\n")
+        rulefile.write(ldap_code + "\n\n")
+        rulefile.write(scasp_dates + "\n\n")
+        rulefile.write(scasp_now + "\n\n")
+        rulefile.write(scasp_aggregates + "\n\n")
+        rulefile.write(ec_code + "\n\n")
 
+        rulefile.write(ruleset + "\n")
 
-      rulefile.write(ruleset + '\n')
+        ruleset_lines = [line.replace(" ", "") for line in ruleset.splitlines()]
+        test_lines = [
+            line.replace(" ", "") for line in test.scasp_encoding.splitlines()
+        ]
+        for fact in translated_facts.splitlines():
+            if (
+                fact.replace(" ", "") not in ruleset_lines
+                and fact.replace(" ", "") not in test_lines
+            ):
+                rulefile.write(fact + "\n")
 
-      ruleset_lines = [line.replace(' ','') for line in ruleset.splitlines()]
-      test_lines = [line.replace(' ','') for line in test.scasp_encoding.splitlines()]
-      for fact in translated_facts.splitlines():
-        if fact.replace(' ','') not in ruleset_lines and fact.replace(' ','') not in test_lines:
-          rulefile.write(fact + '\n')
+        # rulefile.write(translated_facts)
+        rulefile.close()
+        rulefilename = rulefile.name
+        temprulefile = open(rulefilename, "r")
+        # print(temprulefile.read())
+        temprulefile.close()
 
-      # rulefile.write(translated_facts)
-      rulefile.close()
-      rulefilename = rulefile.name
-      temprulefile = open(rulefilename,'r')
-      #print(temprulefile.read())
-      temprulefile.close()
+        # Start the Prolog "thread"
+        try:
+            with PrologMQI() as swipl:
+                with swipl.create_thread() as swipl_thread:
 
-      # Start the Prolog "thread"
-      try: 
-        with PrologMQI() as swipl:
-            with swipl.create_thread() as swipl_thread:
+                    transcript = tempfile.NamedTemporaryFile(
+                        "w", delete=False, prefix="transcript_"
+                    )
+                    transcript_name = transcript.name
 
-                transcript = tempfile.NamedTemporaryFile('w',delete=False,prefix="transcript_")
-                transcript_name = transcript.name
+                    with redirect_stderr(transcript):
+                        load_file_answer = swipl_thread.query(
+                            "['" + rulefilename + "']."
+                        )
+                    # print("Loading generated prolog file: " + str(load_file_answer) + '\n')
+                    transcript.write(str(load_file_answer) + "\n")
+                    if os.path.exists(rulefilename):
+                        rules = open(rulefilename)
+                        rulestext = rules.read()
+                        transcript.write(rulestext + "\n")
+                        rules.close()
+                        # os.remove(rulefilename)
 
-                with redirect_stderr(transcript):
-                    load_file_answer = swipl_thread.query("['" + rulefilename + "'].")
-                #print("Loading generated prolog file: " + str(load_file_answer) + '\n')
-                transcript.write(str(load_file_answer) + '\n')
-                if os.path.exists(rulefilename):
-                    rules = open(rulefilename)
-                    rulestext = rules.read()
-                    transcript.write(rulestext + '\n')
-                    rules.close()
-                    #os.remove(rulefilename)
+                    # ec_preprocess_step(swipl_thread)
 
-                
-                #ec_preprocess_step(swipl_thread)
+                    # transcript.write(full_query)
+                    with redirect_stderr(transcript):
+                        # print("blawxrun(" + query + ",Human,Model).")
+                        relevance_query_answer = swipl_thread.query(
+                            "blawxrun((" + query + "),Human, Tree, Model)."
+                        )
+                    # print("Running Relevance Query:")
+                    # print(str(relevance_query_answer) + "\n")
+                    transcript.write(str(relevance_query_answer) + "\n")
 
-                #transcript.write(full_query)
-                with redirect_stderr(transcript):
-                    # print("blawxrun(" + query + ",Human,Model).")
-                    relevance_query_answer = swipl_thread.query("blawxrun((" + query + "),Human, Tree, Model).")
-                #print("Running Relevance Query:")
-                #print(str(relevance_query_answer) + "\n")
-                transcript.write(str(relevance_query_answer) + '\n')
+                    transcript.close()
+                    transcript = open(transcript_name, "r")
+                    transcript_output = transcript.read()
+                    transcript.close()
+                    # os.remove(transcript_name)
+        except PrologError as err:
+            return Response(
+                {
+                    "error": "There was an error while running the code.",
+                    "transcript": err.prolog(),
+                }
+            )
+        except PrologLaunchError as err:
+            relevance_query_answer = "Blawx could not load the reasoner."
+            return Response({"error": "Blawx could not load the reasoner."})
 
-                transcript.close()
-                transcript = open(transcript_name,'r')
-                transcript_output = transcript.read()
-                transcript.close()
-                #os.remove(transcript_name)
-      except PrologError as err:
-        return Response({ "error": "There was an error while running the code.", "transcript": err.prolog() })
-      except PrologLaunchError as err:
-        relevance_query_answer = "Blawx could not load the reasoner."
-        return Response({ "error": "Blawx could not load the reasoner." })
+        # Okay, the relevance query is running properly, and including terms in the results.
+        # Now I need to generate relevant categories and relevant attributes from the contents.
+        # The way to do that is to go through the terms, find the ones that have been assumed.
 
-      # Okay, the relevance query is running properly, and including terms in the results.
-      # Now I need to generate relevant categories and relevant attributes from the contents.
-      # The way to do that is to go through the terms, find the ones that have been assumed.
+        # The relevant categories are the categories for which there is an assumed member of a category in the results.
+        # It is assumed if it justified with a chs(category(term)) in the tree. The term can be a symbol or an atom.
+        # It makes a difference. If it is a variable, then the unground term is valid. If it is a symbol, the ground
+        # term is valid, but not necessarily the unground term, unless it is valid elsewhere.
+        # Similarly for attributes. if there exists chs(attribute(object,value)) in the tree, then it was assumed.
 
-      # The relevant categories are the categories for which there is an assumed member of a category in the results.
-      # It is assumed if it justified with a chs(category(term)) in the tree. The term can be a symbol or an atom.
-      # It makes a difference. If it is a variable, then the unground term is valid. If it is a symbol, the ground
-      # term is valid, but not necessarily the unground term, unless it is valid elsewhere.
-      # Similarly for attributes. if there exists chs(attribute(object,value)) in the tree, then it was assumed.
+        # So we could start by just pulling out anything that appears inside chs, and then processing those.
+        assumptions = []
+        useful_assumptions = []
+        relevant_categories = []
+        relevant_attributes = []
+        # print("Generating Answers")
+        relevance_answers_processed = generate_answers(relevance_query_answer)
+        # print(str(relevance_answers_processed) + '\n')
+        for a in relevance_answers_processed:
+            for m in a["Models"]:
+                assumptions.extend(find_assumptions(m["Raw"]))
+        for a in assumptions:
+            if a["functor"] == "not" and a["args"][0]["functor"] == "abducible$$":
+                pass
+            elif simplify_term(a) not in useful_assumptions:
+                useful_assumptions.append(simplify_term(a))
+        for ua in useful_assumptions:
+            # if len(ua['args']) == 1:
+            #   relevant_categories.append(ua['functor'])
+            # else:
+            relevant_attributes.append({"functor": ua["functor"], "args": ua["args"]})
 
-      # So we could start by just pulling out anything that appears inside chs, and then processing those.
-      assumptions = []
-      useful_assumptions = []
-      relevant_categories = []
-      relevant_attributes= []
-      #print("Generating Answers")
-      relevance_answers_processed = generate_answers(relevance_query_answer)
-      #print(str(relevance_answers_processed) + '\n')
-      for a in relevance_answers_processed:
-        for m in a['Models']:
-          assumptions.extend(find_assumptions(m['Raw']))
-      for a in assumptions:
-        if a['functor'] == 'not' and a['args'][0]['functor'] == 'abducible$$':
-          pass
-        elif simplify_term(a) not in useful_assumptions:
-          useful_assumptions.append(simplify_term(a))
-      for ua in useful_assumptions:
-        # if len(ua['args']) == 1:
-        #   relevant_categories.append(ua['functor'])
-        # else:
-          relevant_attributes.append({'functor': ua['functor'], 'args': ua['args']})
-
-
-      
-      # Return the results as JSON
-      if relevance_query_answer == False:
-        return Response({ "Answers": [], "Relevant Statements": relevant_attributes, "Transcript": transcript_output })
-      else:
-        return Response({ "Answers": relevance_answers_processed, "Relevant Statements": relevant_attributes, "Transcript": transcript_output })
+        # Return the results as JSON
+        if relevance_query_answer == False:
+            return Response(
+                {
+                    "Answers": [],
+                    "Relevant Statements": relevant_attributes,
+                    "Transcript": transcript_output,
+                }
+            )
+        else:
+            return Response(
+                {
+                    "Answers": relevance_answers_processed,
+                    "Relevant Statements": relevant_attributes,
+                    "Transcript": transcript_output,
+                }
+            )
     else:
-      return HttpResponseForbidden()
+        return HttpResponseForbidden()
 
 
-
-pp.ParserElement.set_default_whitespace_chars(' \t')
-answer_line = pp.Combine(pp.OneOrMore(pp.Word(pp.printables)),adjacent=False,join_string=" ") + pp.Suppress(pp.line_end)
-answer = pp.OneOrMore(pp.IndentedBlock(answer_line,recursive=True))
+pp.ParserElement.set_default_whitespace_chars(" \t")
+answer_line = pp.Combine(
+    pp.OneOrMore(pp.Word(pp.printables)), adjacent=False, join_string=" "
+) + pp.Suppress(pp.line_end)
+answer = pp.OneOrMore(pp.IndentedBlock(answer_line, recursive=True))
 
 
 def simplify_term(term):
-  simplified = {}
-  simplified['functor'] = term['functor']
-  simplified['args'] = []
-  replacements = ['Q','R','S','T','U','V','W','X','Y','Z'] # We have up to 10-ary terms, now. 
-  r = 0
-  for a in term['args']:
-    if type(a) == dict: # If the argument is a term, simplify it, too. Used to deal with negations, mostly.
-      simplified['args'].append(simplify_term(a))
-    elif type(a) == str and a[0].isupper(): #This is a variable.
-      simplified['args'].append(replacements[r])
-      r += 1
-    else:
-      simplified['args'].append(a)
-  return simplified
-
+    simplified = {}
+    simplified["functor"] = term["functor"]
+    simplified["args"] = []
+    replacements = [
+        "Q",
+        "R",
+        "S",
+        "T",
+        "U",
+        "V",
+        "W",
+        "X",
+        "Y",
+        "Z",
+    ]  # We have up to 10-ary terms, now.
+    r = 0
+    for a in term["args"]:
+        if (
+            type(a) == dict
+        ):  # If the argument is a term, simplify it, too. Used to deal with negations, mostly.
+            simplified["args"].append(simplify_term(a))
+        elif type(a) == str and a[0].isupper():  # This is a variable.
+            simplified["args"].append(replacements[r])
+            r += 1
+        else:
+            simplified["args"].append(a)
+    return simplified
 
 
 def generate_answers(answers):
-  # If the variable 'Human' appears, it is a NLG-formatted justification.
-  # If the variable 'Model' appears, it is a list of terms.
-  # If the variable 'Tree' appears, in is a non-NLG-formatted justificaiton.
-  # Anything else is Variables.
-  if answers == False:
-    return []
-  models = []
-  result = []
-  for a in answers:
-    #print(answers)
-    new_model = {}
-    new_model['Variables'] = {}
-    new_model['Terms'] = {}
-    new_model['Raw'] = {}
-    new_model['Residuals'] = {}
-    for (k,v) in a.items():
-      if k == "Human":
-          if v != '\n':
-            new_model['Tree'] = generate_list_of_lists(v[0:-1])
-          else:
-            new_model['Tree'] = ['No explanation.']
-      elif k == 'Model':
-        new_model['Terms'] = v
-      elif k == "Tree":
-          new_model['Raw'] = v
-      elif k == "$residuals":
-        new_model['Residuals'] = v
-      else:
-        new_model['Variables'][k] = v
-    models.append(new_model)
-    # This is not working because of how s(CASP) is choosing variable names in the residuals.
-    # The variable names are not used to distinguish answers, so I think we can move residuals
-    # inside the model structure, and test variables without them, then change the scenario
-    # editor code to process residuals from the model, not from the variables.
-    #print("Searching for: " + str(new_model['Variables']))
-    #print("Among: " + str([r['Variables'] for r in result]) + '\n')
-    if new_model['Variables'] not in [r['Variables'] for r in result]:
-      new_answer = {}
-      new_answer['Variables'] = new_model['Variables']
-      new_answer['Models'] = []
-      new_answer['Models'].append({'Tree': new_model['Tree'], 'Terms': new_model['Terms'], 'Raw': new_model['Raw'], 'Residuals': new_model['Residuals']})
-      result.append(new_answer)
-    else:
-      for a in result:
-        if new_model['Variables'] == a['Variables']:
-          # If this explanation is not identical to another one
-          duplicate = False
-          for m in a['Models']:
-            if 'args' in m['Raw']:
-              if json.dumps(m['Raw']['args'][1][0]) == json.dumps(new_model['Raw']['args'][1][0] and json.dumps(m['Residuals']) == json.dumps(new_model['Residuals'])):
-                duplicate = True
-                break
-          if not duplicate:
-            a['Models'].append({'Tree': new_model['Tree'], 'Terms': new_model['Terms'], 'Raw': new_model['Raw'], 'Residuals': new_model['Residuals']})
-  return result
+    # If the variable 'Human' appears, it is a NLG-formatted justification.
+    # If the variable 'Model' appears, it is a list of terms.
+    # If the variable 'Tree' appears, in is a non-NLG-formatted justificaiton.
+    # Anything else is Variables.
+    if answers == False:
+        return []
+    models = []
+    result = []
+    for a in answers:
+        # print(answers)
+        new_model = {}
+        new_model["Variables"] = {}
+        new_model["Terms"] = {}
+        new_model["Raw"] = {}
+        new_model["Residuals"] = {}
+        for k, v in a.items():
+            if k == "Human":
+                if v != "\n":
+                    new_model["Tree"] = generate_list_of_lists(v[0:-1])
+                else:
+                    new_model["Tree"] = ["No explanation."]
+            elif k == "Model":
+                new_model["Terms"] = v
+            elif k == "Tree":
+                new_model["Raw"] = v
+            elif k == "$residuals":
+                new_model["Residuals"] = v
+            else:
+                new_model["Variables"][k] = v
+        models.append(new_model)
+        # This is not working because of how s(CASP) is choosing variable names in the residuals.
+        # The variable names are not used to distinguish answers, so I think we can move residuals
+        # inside the model structure, and test variables without them, then change the scenario
+        # editor code to process residuals from the model, not from the variables.
+        # print("Searching for: " + str(new_model['Variables']))
+        # print("Among: " + str([r['Variables'] for r in result]) + '\n')
+        if new_model["Variables"] not in [r["Variables"] for r in result]:
+            new_answer = {}
+            new_answer["Variables"] = new_model["Variables"]
+            new_answer["Models"] = []
+            new_answer["Models"].append(
+                {
+                    "Tree": new_model["Tree"],
+                    "Terms": new_model["Terms"],
+                    "Raw": new_model["Raw"],
+                    "Residuals": new_model["Residuals"],
+                }
+            )
+            result.append(new_answer)
+        else:
+            for a in result:
+                if new_model["Variables"] == a["Variables"]:
+                    # If this explanation is not identical to another one
+                    duplicate = False
+                    for m in a["Models"]:
+                        if "args" in m["Raw"]:
+                            if json.dumps(m["Raw"]["args"][1][0]) == json.dumps(
+                                new_model["Raw"]["args"][1][0]
+                                and json.dumps(m["Residuals"])
+                                == json.dumps(new_model["Residuals"])
+                            ):
+                                duplicate = True
+                                break
+                    if not duplicate:
+                        a["Models"].append(
+                            {
+                                "Tree": new_model["Tree"],
+                                "Terms": new_model["Terms"],
+                                "Raw": new_model["Raw"],
+                                "Residuals": new_model["Residuals"],
+                            }
+                        )
+    return result
+
 
 def generate_list_of_lists(string):
-  return answer.parse_string(string,parse_all=True).as_list()
-  
-def get_variables(query):
-  return re.findall(r"[^\w]([A-Z_]\w*)",query)
+    return answer.parse_string(string, parse_all=True).as_list()
 
-def find_assumptions(Tree): # Pulls the assumptions out of a Prolog-formatted explanation tree
-  # print("Finding assumptions in " + str(Tree))
-  assumptions = []
-  # If we are on "query", which is the first argument of the root "because", return nothing.
-  if Tree == "query" or Tree == "o_nmr_check":
-    return []
-  # If we are on a list of terms, which is the second arguemnt of the root "because", go through the list.
-  elif type(Tree) == list:
-    for t in Tree:
-      assumptions.extend(find_assumptions(t))
-    return assumptions
-  # If we have received a "because" functor, add all of the assumptions in each of the reasons.
-  elif Tree['functor'] == '-':
-    for a in Tree['args']:
-      assumptions.extend(find_assumptions(a))
-    return assumptions
-  # If it is a chs, the assumption is the only argument.
-  elif Tree['functor'] == 'abduced' or Tree['functor'] == 'chs':
-    return [Tree['args'][0]]
-  # CHS does not appear as an internal term. So if this is an outside term that is not chs and not because, we can ignore its contents.
-  else:
-    return []
+
+def get_variables(query):
+    return re.findall(r"[^\w]([A-Z_]\w*)", query)
+
+
+def find_assumptions(
+    Tree,
+):  # Pulls the assumptions out of a Prolog-formatted explanation tree
+    # print("Finding assumptions in " + str(Tree))
+    assumptions = []
+    # If we are on "query", which is the first argument of the root "because", return nothing.
+    if Tree == "query" or Tree == "o_nmr_check":
+        return []
+    # If we are on a list of terms, which is the second arguemnt of the root "because", go through the list.
+    elif type(Tree) == list:
+        for t in Tree:
+            assumptions.extend(find_assumptions(t))
+        return assumptions
+    # If we have received a "because" functor, add all of the assumptions in each of the reasons.
+    elif Tree["functor"] == "-":
+        for a in Tree["args"]:
+            assumptions.extend(find_assumptions(a))
+        return assumptions
+    # If it is a chs, the assumption is the only argument.
+    elif Tree["functor"] == "abduced" or Tree["functor"] == "chs":
+        return [Tree["args"][0]]
+    # CHS does not appear as an internal term. So if this is an outside term that is not chs and not because, we can ignore its contents.
+    else:
+        return []
 
 
 # This accepts a SWI-Prolog thread, runs queries and asserts additional rules

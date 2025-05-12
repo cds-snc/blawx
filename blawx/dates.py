@@ -1,7 +1,7 @@
 from datetime import datetime
 
 now = datetime.now()
-today = datetime(now.year,now.month,now.day)
+today = datetime(now.year, now.month, now.day)
 scasp_now = "blawx_now(datetime(" + str(now.timestamp()) + ")).\n"
 scasp_now += "blawx_today(date(" + str(today.timestamp()) + ")).\n"
 
