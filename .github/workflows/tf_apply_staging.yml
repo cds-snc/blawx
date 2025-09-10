@@ -50,12 +50,12 @@ jobs:
 
       - name: Apply route53
         working-directory: terragrunt/env/staging/route53
-        run: terragrunt apply --terragrunt-non-interactive -auto-approve
+        run: terragrunt apply ---non-interactive -auto-approve
 
       - name: Apply vpc
         working-directory: terragrunt/env/staging/vpc
-        run: terragrunt apply --terragrunt-non-interactive -auto-approve
+        run: terragrunt apply ---non-interactive -auto-approve
 
       - name: Apply alb
         working-directory: terragrunt/env/staging/alb
-        run: terragrunt apply --terragrunt-non-interactive -auto-approve
+        run: terragrunt apply ---non-interactive -auto-approve
