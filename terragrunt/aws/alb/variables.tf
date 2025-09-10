@@ -36,18 +36,6 @@ variable "ssl_policy" {
   default     = "ELBSecurityPolicy-TLS13-1-3-FIPS-2023-04"
 }
 
-variable "enable_access_logs" {
-  description = "Whether to enable ALB access logs"
-  type        = bool
-  default     = false
-}
-
-variable "access_logs_bucket" {
-  description = "S3 bucket for ALB access logs (required if enable_access_logs is true)"
-  type        = string
-  default     = ""
-}
-
 # Health check variables
 variable "health_check_path" {
   description = "The path for health checks"
