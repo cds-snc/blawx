@@ -56,3 +56,11 @@ static/
 # OS
 .DS_Store
 Thumbs.db
+
+# Terrafrom/terragrunt
+.terraform/
+.terragrunt-cache/
+*.tfstate
+*.tfstate.backup
+secrets*.tfvars
+*.tfplan
