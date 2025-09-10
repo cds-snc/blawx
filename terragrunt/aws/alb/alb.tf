@@ -55,10 +55,10 @@ resource "aws_security_group" "blawx_alb" {
 
   # All outbound traffic
   egress {
-    description = "All outbound traffic"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    description = "Outbound traffic to port 8000"
+    from_port   = var.app_port
+    to_port     = var.app_port
+    protocol    = "tcp"
     cidr_blocks = [var.vpc_cidr_block]
   }
 
@@ -81,17 +81,6 @@ resource "aws_lb" "blawx_alb" {
   security_groups            = [aws_security_group.blawx_alb.id]
   subnets                    = var.vpc_public_subnet_ids
   enable_deletion_protection = var.env == "production" ? true : false
-
-  # Enable access logs (optional - requires S3 bucket)
-  dynamic "access_logs" {
-    for_each = var.enable_access_logs ? [1] : []
-    content {
-      bucket  = var.access_logs_bucket
-      prefix  = "${var.product_name}-${var.env}-alb"
-      enabled = true
-    }
-  }
-
   tags = {
     Name       = "${var.product_name}-${var.env}-alb"
     CostCentre = var.billing_tag_value

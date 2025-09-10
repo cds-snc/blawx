@@ -46,27 +46,3 @@ resource "aws_ecr_lifecycle_policy" "blawx_expire_untagged" {
     ]
   })
 }
-
-resource "aws_ecr_repository_policy" "blawx_policy" {
-  repository = aws_ecr_repository.blawx_ecr.name
-
-  policy = jsonencode({
-    "Version" : "2012-10-17",
-    "Statement" : [
-      {
-        "Sid" : "AllowPull",
-        "Effect" : "Allow",
-        "Principal" : {
-          "AWS" : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
-        },
-        "Action" : [
-          "ecr:GetDownloadUrlForLayer",
-          "ecr:BatchGetImage",
-          "ecr:BatchCheckLayerAvailability"
-        ]
-      }
-    ]
-  })
-}
-
-data "aws_caller_identity" "current" {}
