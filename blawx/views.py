@@ -1,54 +1,44 @@
-from django.views import generic
-from django.views.generic.edit import CreateView, DeleteView, UpdateView
-from django.urls import reverse_lazy
+import os
+import tempfile
 
+import lxml
+from cobalt.hierarchical import Act
+from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth import login
+from django.contrib.auth.forms import UserCreationForm
 # from django.contrib.auth.mixins import UserPassesTestMixin
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.auth.forms import UserCreationForm
-from django.core import serializers
-from django.http import (
-    FileResponse,
-    HttpResponse,
-    HttpResponseForbidden,
-    HttpResponseNotFound,
-    HttpResponseRedirect,
-    HttpResponseNotAllowed,
-)
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import login
-from django.contrib import messages
 from django.contrib.auth.models import User
-
+from django.core import serializers
+from django.http import (FileResponse, HttpResponse, HttpResponseForbidden,
+                         HttpResponseNotAllowed, HttpResponseNotFound,
+                         HttpResponseRedirect)
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse_lazy
+from django.views import generic
+from django.views.generic.edit import CreateView, DeleteView, UpdateView
+from guardian.mixins import PermissionRequiredMixin
+from preferences import preferences
+# from rest_framework.permissions import AllowAny
+from rest_framework.authentication import \
+    SessionAuthentication  # , BasicAuthentication
 # from rest_framework import viewsets, permissions
-from rest_framework.decorators import (
-    api_view,
-    permission_classes,
-    authentication_classes,
-)
+from rest_framework.decorators import (api_view, authentication_classes,
+                                       permission_classes)
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
-# from rest_framework.permissions import AllowAny
-from rest_framework.authentication import SessionAuthentication  # , BasicAuthentication
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from .models import BlawxTest, DocPage, RuleDoc, Workspace
+from .serializers import (CodeUpdateRequestSerializer,
+                          SaveFactsRequestSerializer,
+                          TestViewUpdateRequestSerializer)
 
 # from rest_framework import permissions
 
-from guardian.mixins import PermissionRequiredMixin
 
-from .serializers import (
-    CodeUpdateRequestSerializer,
-    TestViewUpdateRequestSerializer,
-    SaveFactsRequestSerializer,
-)
-from .models import Workspace, DocPage, RuleDoc, BlawxTest
 
-from preferences import preferences
-from django.conf import settings
 
-from cobalt.hierarchical import Act
-import lxml
-import tempfile
-import os
 
 # Create your views here.
 

@@ -1,12 +1,10 @@
 from django.contrib import admin
+from django.contrib.auth.views import (LoginView, LogoutView,
+                                       PasswordChangeDoneView,
+                                       PasswordChangeView)
 from django.urls import include, path
-from . import views, reasoner, simplifier
-from django.contrib.auth.views import (
-    LoginView,
-    LogoutView,
-    PasswordChangeDoneView,
-    PasswordChangeView,
-)
+
+from . import reasoner, simplifier, views
 from .models import RuleDoc
 
 app_name = "blawx"

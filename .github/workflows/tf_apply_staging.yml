@@ -1,0 +1,61 @@
+name: Terraform Apply Staging
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "terragrunt/aws/**"
+      - "terragrunt/env/staging/**"
+      - "terragrunt/env/common/**"
+      - "terragrunt/env/root.hcl"
+      - ".github/workflows/tf_apply_staging.yml"
+
+env:
+  AWS_REGION: ca-central-1
+  TERRAFORM_VERSION: 1.13.1
+  TERRAGRUNT_VERSION: 0.87.0
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  terragrunt-apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Audit DNS requests
+        uses: cds-snc/dns-proxy-action@50d3033adea55c246f2e314920759cd81ecae522
+        env:
+          DNS_PROXY_FORWARDTOSENTINEL: "true"
+          DNS_PROXY_LOGANALYTICSWORKSPACEID: ${{ secrets.LOG_ANALYTICS_WORKSPACE_ID }}
+          DNS_PROXY_LOGANALYTICSSHAREDKEY: ${{ secrets.LOG_ANALYTICS_WORKSPACE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: setup terraform tools
+        uses: cds-snc/terraform-tools-setup@cc15ce9039f6c37c592fb9930b70466b229d2e9b # v1
+
+      - name: configure aws credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.STAGING_AWS_ACCOUNT_ID }}:role/blawx-apply
+          role-session-name: TFApply
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Apply ecr
+        working-directory: terragrunt/env/staging/ecr
+        run: terragrunt apply --terragrunt-non-interactive -auto-approve
+
+      - name: Apply route53
+        working-directory: terragrunt/env/staging/route53
+        run: terragrunt apply --terragrunt-non-interactive -auto-approve
+
+      - name: Apply vpc
+        working-directory: terragrunt/env/staging/vpc
+        run: terragrunt apply --terragrunt-non-interactive -auto-approve
+
+      - name: Apply alb
+        working-directory: terragrunt/env/staging/alb
+        run: terragrunt apply --terragrunt-non-interactive -auto-approve
