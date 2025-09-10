@@ -6,7 +6,7 @@ on:
       - "terragrunt/env/staging/**"
       - "terragrunt/env/common/**"
       - "terragrunt/env/root.hcl"
-      - ".github/workflows/tf-plan-staging.yml"
+      - ".github/workflows/tf_plan_staging.yml"
 
 env:
   AWS_REGION: ca-central-1
