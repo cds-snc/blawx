@@ -40,15 +40,15 @@ dependency "route53" {
 }
 
 inputs = {
-  hosted_zone_id     	 = dependency.route53.outputs.hosted_zone_id
-  hosted_zone_name     	 = dependency.route53.outputs.hosted_zone_name
-  vpc_id	     	 = dependency.vpc.outputs.vpc_id
-  vpc_private_subnet_ids = dependency.vpc.outputs.vpc_private_subnet_ids
-  vpc_public_subnet_ids  = dependency.vpc.outputs.vpc_public_subnet_ids
-  vpc_cidr_block     	 = dependency.vpc.outputs.vpc_cidr_block
-  
+  hosted_zone_id     	    = dependency.route53.outputs.hosted_zone_id
+  hosted_zone_name     	  = dependency.route53.outputs.hosted_zone_name
+  vpc_id	     	          = dependency.vpc.outputs.vpc_id
+  vpc_private_subnet_ids  = dependency.vpc.outputs.vpc_private_subnet_ids
+  vpc_public_subnet_ids   = dependency.vpc.outputs.vpc_public_subnet_ids
+  vpc_cidr_block     	    = dependency.vpc.outputs.vpc_cidr_block
+
   # Environment variables
-  product_name       = local.env_vars.inputs.product_name
+  product_name      = local.env_vars.inputs.product_name
   env               = local.env_vars.inputs.env
   billing_code      = "blawx-${local.env_vars.inputs.env}"
   billing_tag_value = "blawx-${local.env_vars.inputs.env}"

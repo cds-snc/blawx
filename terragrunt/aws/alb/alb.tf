@@ -44,24 +44,6 @@ resource "aws_security_group" "blawx_alb" {
   vpc_id      = var.vpc_id
   description = "Security group for ${var.product_name} ${var.env} Application Load Balancer"
 
-  # HTTPS access from anywhere
-  ingress {
-    description = "HTTPS"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # All outbound traffic
-  egress {
-    description = "Outbound traffic to port 8000"
-    from_port   = var.app_port
-    to_port     = var.app_port
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr_block]
-  }
-
   tags = {
     Name       = "${var.product_name}-${var.env}-alb-sg"
     CostCentre = var.billing_tag_value
@@ -73,6 +55,28 @@ resource "aws_security_group" "blawx_alb" {
   }
 }
 
+# Security Group Rule: HTTPS access from anywhere
+resource "aws_security_group_rule" "blawx_alb_ingress_https" {
+  type              = "ingress"
+  from_port         = 443
+  to_port           = 443
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  description       = "HTTPS access from anywhere"
+  security_group_id = aws_security_group.blawx_alb.id
+}
+
+# Security Group Rule: Outbound traffic to application port
+resource "aws_security_group_rule" "blawx_alb_egress_app" {
+  type              = "egress"
+  from_port         = var.app_port
+  to_port           = var.app_port
+  protocol          = "tcp"
+  cidr_blocks       = [var.vpc_cidr_block]
+  description       = "Outbound traffic to port ${var.app_port}"
+  security_group_id = aws_security_group.blawx_alb.id
+}
+
 # Application Load Balancer
 resource "aws_lb" "blawx_alb" {
   name                       = "${var.product_name}-${var.env}-alb"
@@ -81,6 +85,13 @@ resource "aws_lb" "blawx_alb" {
   security_groups            = [aws_security_group.blawx_alb.id]
   subnets                    = var.vpc_public_subnet_ids
   enable_deletion_protection = var.env == "production" ? true : false
+  drop_invalid_header_fields = true
+
+  access_logs {
+    bucket  = var.cbs_satellite_bucket_name
+    prefix  = "lb_logs"
+    enabled = true
+  }
   tags = {
     Name       = "${var.product_name}-${var.env}-alb"
     CostCentre = var.billing_tag_value
