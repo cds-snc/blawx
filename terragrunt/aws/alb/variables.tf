@@ -33,7 +33,7 @@ variable "app_port" {
 variable "ssl_policy" {
   description = "The SSL policy for the HTTPS listener"
   type        = string
-  default     = "ELBSecurityPolicy-TLS-1-2-2017-01"
+  default     = "ELBSecurityPolicy-TLS13-1-3-FIPS-2023-04"
 }
 
 variable "enable_access_logs" {
