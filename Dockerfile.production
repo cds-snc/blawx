@@ -27,7 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libarchive-dev \
     libarchive13 \
     libtcmalloc-minimal4 \
-    libpcre3-dev \
+    libpcre2-dev \
     git \
     wget \
     unzip \
@@ -117,10 +117,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libreadline8 \
     libedit2 \
     libgmp10 \
-    libssl1.1 \
+    libssl3 \
     libarchive13 \
     libtcmalloc-minimal4 \
-    libpcre3 \
+    libpcre2-8-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app user
@@ -141,16 +141,22 @@ COPY --from=base /root/.local/share/swi-prolog /root/.local/share/swi-prolog
 # Copy sCASP
 COPY --from=base /app/sCASP /app/sCASP
 
+# Create necessary directories
+RUN mkdir -p /app/static
+RUN mkdir -p /app/staticfiles
+
 # Copy static files
-COPY --from=base /app/blawx/static /app/blawx/static
+COPY static/ /app/static/
 
 # Copy application code
 COPY blawx/ /app/blawx/
 COPY manage.py /app/
 COPY load_data.py /app/
 
-# Create staticfiles directory for collectstatic
-RUN mkdir -p /app/staticfiles
+# Run database migrations as root (before switching to appuser)
+RUN python manage.py makemigrations --noinput
+RUN python manage.py migrate --noinput
+RUN python manage.py collectstatic --noinput
 
 # Set ownership to app user
 RUN chown -R appuser:appuser /app
