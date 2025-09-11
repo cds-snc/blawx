@@ -1,0 +1,169 @@
+# Production Dockerfile for Blawx Django Application
+FROM swipl:latest as prolog
+
+# Multi-stage build for production Django application
+FROM python:3.10-slim as base
+
+# Set environment variables for production
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    libxml2-dev \
+    libxslt1-dev \
+    zlib1g-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libreadline-dev \
+    libedit-dev \
+    libgmp-dev \
+    libssl-dev \
+    libarchive-dev \
+    libarchive13 \
+    libtcmalloc-minimal4 \
+    libpcre3-dev \
+    git \
+    wget \
+    unzip \
+    make \
+    g++ \
+    gcc \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js for frontend dependencies
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app user for security
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Set work directory
+WORKDIR /app
+
+# Copy and install Python requirements first for better caching
+COPY blawx/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Download and setup sCASP
+RUN wget https://github.com/SWI-Prolog/sCASP/archive/refs/heads/master.zip \
+    && unzip master.zip \
+    && mv sCASP-master sCASP \
+    && rm master.zip
+
+# Copy SWI-Prolog from base image
+COPY --from=prolog /usr/lib/swipl/ /usr/lib/swipl/
+COPY --from=prolog /usr/bin/swipl /usr/bin/swipl
+RUN chmod +x /usr/bin/swipl
+
+# Create necessary directories and install sCASP
+RUN mkdir -p /root/.local/share/swi-prolog/pack \
+    && cd sCASP \
+    && mkdir -p /root/.local/share/swi-prolog/pack/scasp \
+    && cp -r * /root/.local/share/swi-prolog/pack/scasp/ \
+    && cd /root/.local/share/swi-prolog/pack/scasp \
+    && swipl -g "make" -t halt
+
+# Create static directories
+RUN mkdir -p /app/blawx/static/blawx/blockly \
+    && mkdir -p /app/blawx/static/blawx/fonts
+
+# Install and setup frontend dependencies
+RUN npm install --production blockly jquery bootstrap bootstrap-icons
+
+# Copy frontend assets to static directory
+RUN cp -r node_modules/blockly/* /app/blawx/static/blawx/blockly/ \
+    && cp node_modules/jquery/dist/jquery.min.js /app/blawx/static/blawx/ \
+    && cp node_modules/bootstrap/dist/css/bootstrap.min.css /app/blawx/static/blawx/ \
+    && cp node_modules/bootstrap/dist/css/bootstrap.min.css.map /app/blawx/static/blawx/ \
+    && cp node_modules/bootstrap/dist/js/bootstrap.bundle.min.js /app/blawx/static/blawx/ \
+    && cp node_modules/bootstrap/dist/js/bootstrap.bundle.min.js.map /app/blawx/static/blawx/ \
+    && cp node_modules/bootstrap-icons/font/bootstrap-icons.css /app/blawx/static/blawx/ \
+    && cp node_modules/bootstrap-icons/font/fonts/bootstrap-icons.woff /app/blawx/static/blawx/fonts/ \
+    && cp node_modules/bootstrap-icons/font/fonts/bootstrap-icons.woff2 /app/blawx/static/blawx/fonts/
+
+# Download Blockly storage.js
+RUN mkdir -p /app/blawx/static/blawx/blockly/appengine \
+    && curl -o /app/blawx/static/blawx/blockly/appengine/storage.js \
+    https://raw.githubusercontent.com/google/blockly/develop/appengine/storage.js
+
+# Clean up npm packages to reduce image size
+RUN rm -rf node_modules
+
+# Production stage
+FROM python:3.10-slim as production
+
+# Set production environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    DJANGO_SETTINGS_MODULE=blawx.settings_production \
+    ENVIRONMENT=production
+
+# Install only runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    libxml2 \
+    libxslt1.1 \
+    zlib1g \
+    libjpeg62-turbo \
+    libpng16-16 \
+    libreadline8 \
+    libedit2 \
+    libgmp10 \
+    libssl1.1 \
+    libarchive13 \
+    libtcmalloc-minimal4 \
+    libpcre3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app user
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Set work directory
+WORKDIR /app
+
+# Copy Python dependencies from base stage
+COPY --from=base /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
+COPY --from=base /usr/local/bin /usr/local/bin
+
+# Copy SWI-Prolog installation
+COPY --from=base /usr/lib/swipl/ /usr/lib/swipl/
+COPY --from=base /usr/bin/swipl /usr/bin/swipl
+COPY --from=base /root/.local/share/swi-prolog /root/.local/share/swi-prolog
+
+# Copy sCASP
+COPY --from=base /app/sCASP /app/sCASP
+
+# Copy static files
+COPY --from=base /app/blawx/static /app/blawx/static
+
+# Copy application code
+COPY blawx/ /app/blawx/
+COPY manage.py /app/
+COPY load_data.py /app/
+
+# Create staticfiles directory for collectstatic
+RUN mkdir -p /app/staticfiles
+
+# Set ownership to app user
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user for security
+USER appuser
+
+# Expose port 8000
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD python manage.py check --deploy || exit 1
+
+# Production command - use gunicorn for production
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "--worker-class", "sync", "--timeout", "120", "blawx.wsgi:application"]

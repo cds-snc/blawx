@@ -1,0 +1,82 @@
+# Development files
+.devcontainer/
+.vscode/
+.git/
+.gitignore
+README.md
+*.md
+CHANGELOG.md
+INSTALL.md
+LICENSE
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+*.pyc
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+*.sqlite3
+
+# Testing
+.coverage
+.pytest_cache/
+.tox/
+htmlcov/
+test-reports/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Terraform and Infrastructure
+terragrunt/
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# GitHub Actions
+.github/
+
+# Node modules (we install them in Docker)
+node_modules/
+npm-debug.log*
+package-lock.json
+package.json
+
+# IDE files
+.idea/
+*.swp
+*.swo
+*~
+.vscode/
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Other
+Makefile
+update.sh
+thumbnail.png
+blawx_v1.6.16-alpha_interface.png
