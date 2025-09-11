@@ -83,7 +83,7 @@ resource "aws_lb" "blawx_alb" {
   internal                   = false
   load_balancer_type         = "application"
   security_groups            = [aws_security_group.blawx_alb.id]
-  subnets                    = var.vpc_public_subnet_ids
+  subnets                    = var.public_subnet_ids
   enable_deletion_protection = var.env == "production" ? true : false
   drop_invalid_header_fields = true
 

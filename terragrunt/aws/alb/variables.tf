@@ -19,7 +19,7 @@ variable "vpc_cidr_block" {
   type        = string
 }
 
-variable "vpc_public_subnet_ids" {
+variable "public_subnet_ids" {
   description = "Public subnet ids of the VPC"
   type        = list(string)
 }
