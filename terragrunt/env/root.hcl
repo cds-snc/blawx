@@ -25,7 +25,7 @@ remote_state {
     bucket              = "${local.billing_code}-tf"
     use_lockfile        = true
     region              = "ca-central-1"
-    key                 = "./terraform.tfstate"
+    key                 = "${path_relative_to_include()}/terraform.tfstate"
     s3_bucket_tags      = { CostCenter : local.billing_code }
     dynamodb_table_tags = { CostCenter : local.billing_code }
   }

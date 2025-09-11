@@ -8,6 +8,11 @@ output "hosted_zone_arn" {
   value       = aws_route53_zone.blawx_hosted_zone.arn
 }
 
+output "hosted_zone_name" {
+  description = "The name of the hosted zone"
+  value       = aws_route53_zone.blawx_hosted_zone.name
+}
+
 output "name_servers" {
   description = "The name servers for the hosted zone"
   value       = aws_route53_zone.blawx_hosted_zone.name_servers

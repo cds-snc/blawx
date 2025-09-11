@@ -22,8 +22,8 @@ dependency "vpc" {
   mock_outputs_merge_with_state           = true
   mock_outputs = {
     vpc_id 		   = "vpc-123456789"
-    vpc_private_subnet_ids = ["subnet-123456789", "subnet-987654321"]
-    vpc_public_subnet_ids  = ["subnet-111111111", "subnet-222222222"]
+    private_subnet_ids = ["subnet-123456789", "subnet-987654321"]
+    public_subnet_ids  = ["subnet-111111111", "subnet-222222222"]
     vpc_cidr_block         = "10.0.0.0/16"
   }
 }
@@ -43,8 +43,8 @@ inputs = {
   hosted_zone_id     	    = dependency.route53.outputs.hosted_zone_id
   hosted_zone_name     	  = dependency.route53.outputs.hosted_zone_name
   vpc_id	     	          = dependency.vpc.outputs.vpc_id
-  vpc_private_subnet_ids  = dependency.vpc.outputs.vpc_private_subnet_ids
-  vpc_public_subnet_ids   = dependency.vpc.outputs.vpc_public_subnet_ids
+  private_subnet_ids      = dependency.vpc.outputs.private_subnet_ids
+  public_subnet_ids       = dependency.vpc.outputs.public_subnet_ids
   vpc_cidr_block     	    = dependency.vpc.outputs.vpc_cidr_block
 
   # Environment variables
