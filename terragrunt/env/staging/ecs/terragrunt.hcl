@@ -165,7 +165,7 @@ inputs = {
   ecs_scale_memory_threshold = 80
   
   # CloudWatch logs retention
-  log_retention_days = 30
+  log_retention_days = 365
   
   # Enable ECS Exec for debugging in non-production
   enable_execute_command = local.env_vars.inputs.env != "production"
