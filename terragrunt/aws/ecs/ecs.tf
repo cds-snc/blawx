@@ -6,17 +6,6 @@ locals {
   container_secrets = var.container_secrets
 }
 
-# IAM Policy Document: Task Role - Assume Role
-data "aws_iam_policy_document" "blawx_ecs_task_assume_role" {
-  statement {
-    actions = ["sts:AssumeRole"]
-
-    principals {
-      type        = "Service"
-      identifiers = ["ecs-tasks.amazonaws.com"]
-    }
-  }
-}
 
 # IAM Policy Document: Task Role - Application Runtime Permissions
 data "aws_iam_policy_document" "blawx_ecs_task_ssm_parameters_role" {
