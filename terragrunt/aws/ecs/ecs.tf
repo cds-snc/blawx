@@ -39,20 +39,6 @@ data "aws_iam_policy_document" "task_exec_ssm_role" {
   }
 }
 
-# IAM Policy Document: Task Execution Role - CloudWatch Logs Access
-data "aws_iam_policy_document" "task_exec_logs_role" {
-  statement {
-    effect = "Allow"
-    actions = [
-      "logs:CreateLogGroup",
-      "logs:CreateLogStream",
-      "logs:PutLogEvents"
-    ]
-    resources = [
-      "arn:aws:logs:${var.region}:${var.account_id}:log-group:/ecs/${var.product_name}-${var.env}-service:*"
-    ]
-  }
-}
 
 # Security Group for ECS Tasks
 resource "aws_security_group" "ecs_tasks" {
