@@ -23,33 +23,6 @@ data "aws_iam_policy_document" "blawx_ecs_task_ssm_parameters_role" {
   }
 }
 
-data "aws_iam_policy_document" "blawx_ecs_task_cloudwatch_role" {
-  # Allow writing to CloudWatch Logs (application logs)
-  statement {
-    effect = "Allow"
-    actions = [
-      "logs:CreateLogStream",
-      "logs:PutLogEvents"
-    ]
-    resources = [
-      "arn:aws:logs:${var.region}:${var.account_id}:log-group:/ecs/${var.product_name}-${var.env}-service:*"
-    ]
-  }
-}
-
-# IAM Policy Document: Task Execution Role - ECR Access
-data "aws_iam_policy_document" "task_exec_ecr_role" {
-  statement {
-    effect = "Allow"
-    actions = [
-      "ecr:GetAuthorizationToken",
-      "ecr:BatchCheckLayerAvailability",
-      "ecr:GetDownloadUrlForLayer",
-      "ecr:BatchGetImage"
-    ]
-    resources = ["*"]
-  }
-}
 
 # IAM Policy Document: Task Execution Role - SSM Parameter Store Access
 data "aws_iam_policy_document" "task_exec_ssm_role" {
