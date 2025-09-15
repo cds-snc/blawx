@@ -64,7 +64,7 @@ variable "alb_security_group_id" {
   type        = string
 }
 
-variable "rds_security_group_id" {
+variable "proxy_security_group_id" {
   description = "Security group ID of the RDS database"
   type        = string
 }

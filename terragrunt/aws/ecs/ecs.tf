@@ -85,7 +85,7 @@ resource "aws_security_group_rule" "ecs_tasks_egress_rds" {
   from_port                = 5432
   to_port                  = 5432
   protocol                 = "tcp"
-  source_security_group_id = var.rds_security_group_id
+  source_security_group_id = var.proxy_security_group_id
   description              = "Allow outbound traffic to RDS PostgreSQL"
   security_group_id        = aws_security_group.ecs_tasks.id
 }

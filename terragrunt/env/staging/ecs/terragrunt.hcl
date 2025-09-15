@@ -58,7 +58,7 @@ dependency "rds" {
   mock_outputs = {
     rds_cluster_endpoint     = "blawx-staging-database.cluster-abc123.ca-central-1.rds.amazonaws.com"
     rds_cluster_id           = "blawx-staging-database"
-    proxy_security_group_id    = "sg-rds123456789"
+    proxy_security_group_id  = "sg-rds123456789"
   }
 }
 
@@ -151,7 +151,7 @@ inputs = {
   vpc_id                 = dependency.vpc.outputs.vpc_id
   private_subnet_ids     = dependency.vpc.outputs.private_subnet_ids
   alb_security_group_id  = dependency.alb.outputs.alb_security_group_id
-  rds_security_group_id  = dependency.rds.outputs.rds_security_group_id
+  proxy_security_group_id  = dependency.rds.outputs.proxy_security_group_id
   
   # Load balancer integration
   lb_target_group_arn = dependency.alb.outputs.target_group_arn
