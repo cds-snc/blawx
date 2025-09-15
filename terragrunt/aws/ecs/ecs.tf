@@ -52,7 +52,7 @@ module "ecs" {
   desired_count = var.desired_count
 
   # Container Configuration
-  container_image       = var.container_image
+  container_image       = "${var.ecr_repository_url}:latest"
   container_port        = var.container_port
   container_environment = var.container_environment
   container_secrets     = var.container_secrets
