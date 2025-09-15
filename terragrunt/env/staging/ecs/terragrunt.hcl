@@ -140,7 +140,7 @@ inputs = {
     {
       name      = "DATABASE_NAME"
       valueFrom = dependency.ssm.outputs.parameter_arns.database_name
-    }
+    },
     {
       name      = "DJANGO_SECRET_KEY"
       valueFrom = dependency.ssm.outputs.parameter_arns.django_secret_key
