@@ -46,7 +46,7 @@ dependency "ecr" {
   mock_outputs_allowed_terraform_commands = ["init", "fmt", "validate", "plan", "show"]
   mock_outputs_merge_with_state           = true
   mock_outputs = {
-    repository_url = "123456789.dkr.ecr.ca-central-1.amazonaws.com/blawx-staging"
+    ecr_repository_url = "123456789.dkr.ecr.ca-central-1.amazonaws.com/blawx-staging"
   }
 }
 
@@ -86,11 +86,6 @@ dependency "ssm" {
 }
 
 inputs = {
-  # Environment configuration
-  product_name      = local.env_vars.inputs.product_name
-  env              = local.env_vars.inputs.env
-  billing_tag_value = "blawx-${local.env_vars.inputs.env}"
-  
   # Task configuration
   task_cpu      = 512
   task_memory   = 1024
@@ -112,7 +107,7 @@ inputs = {
     },
     {
       name  = "DATABASE_HOST"
-      value = .rds.outputs.rds_cluster_endpoint
+      value = dependency.rds.outputs.rds_cluster_endpoint
     },
     {
       name  = "DATABASE_PORT"
