@@ -128,23 +128,23 @@ inputs = {
   container_secrets = [
     {
       name      = "DATABASE_PASSWORD"
-      valueFrom = dependency.ssm.outputs.parameter_names.database_password
+      valueFrom = dependency.ssm.outputs.parameter_arns.database_password
     },
     {
       name      = "DJANGO_SECRET_KEY"
-      valueFrom = dependency.ssm.outputs.parameter_names.django_secret_key
+      valueFrom = dependency.ssm.outputs.parameter_arns.django_secret_key
     },
     {
       name      = "DEBUG"
-      valueFrom = dependency.ssm.outputs.parameter_names.django_debug
+      valueFrom = dependency.ssm.outputs.parameter_arns.django_debug
     },
     {
       name      = "ALLOWED_HOSTS"
-      valueFrom = dependency.ssm.outputs.parameter_names.django_allowed_hosts
+      valueFrom = dependency.ssm.outputs.parameter_arns.django_allowed_hosts
     },
     {
       name      = "LOG_LEVEL"
-      valueFrom = dependency.ssm.outputs.parameter_names.log_level
+      valueFrom = dependency.ssm.outputs.parameter_arns.log_level
     }
   ]
   
