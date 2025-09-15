@@ -101,10 +101,11 @@ resource "aws_lb" "blawx_alb" {
 
 # Target Group for the application
 resource "aws_lb_target_group" "blawx_app" {
-  name     = "${var.product_name}-${var.env}-app-tg"
-  port     = var.app_port
-  protocol = "HTTP"
-  vpc_id   = var.vpc_id
+  name        = "${var.product_name}-${var.env}-app-tg"
+  port        = var.app_port
+  protocol    = "HTTP"
+  vpc_id      = var.vpc_id
+  target_type = "ip"
 
   health_check {
     enabled             = true
