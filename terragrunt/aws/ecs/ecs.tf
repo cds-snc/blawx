@@ -140,12 +140,9 @@ module "ecs" {
   # IAM Roles
   task_role_policy_documents = [
     data.aws_iam_policy_document.blawx_ecs_task_ssm_parameters_role.json,
-    data.aws_iam_policy_document.blawx_ecs_task_cloudwatch_role.json
   ]
   task_exec_role_policy_documents = [
-    data.aws_iam_policy_document.task_exec_ecr_role.json,
     data.aws_iam_policy_document.task_exec_ssm_role.json,
-    data.aws_iam_policy_document.task_exec_logs_role.json
   ]
 
   # Security & Management
