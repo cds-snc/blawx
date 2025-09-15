@@ -98,9 +98,10 @@ module "ecs" {
   service_name = "${var.product_name}-${var.env}-service"
 
   # Task Configuration
-  task_cpu      = var.task_cpu
-  task_memory   = var.task_memory
-  desired_count = var.desired_count
+  task_cpu                    = var.task_cpu
+  task_memory                 = var.task_memory
+  desired_count               = var.desired_count
+  service_use_latest_task_def = true
 
   # Container Configuration
   container_image            = "${var.ecr_repository_url}:latest"
