@@ -144,7 +144,7 @@ variable "platform_version" {
 variable "cpu_architecture" {
   description = "CPU architecture for the task (X86_64 or ARM64)"
   type        = string
-  default     = "X86_64"
+  default     = "ARM64"
 
   validation {
     condition     = contains(["X86_64", "ARM64"], var.cpu_architecture)

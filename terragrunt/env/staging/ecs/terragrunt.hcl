@@ -70,14 +70,20 @@ dependency "ssm" {
   mock_outputs_allowed_terraform_commands = ["init", "fmt", "validate", "plan", "show"]
   mock_outputs_merge_with_state           = true
   mock_outputs = {
-    parameter_names = {
-      database_password    = "/blawx/staging/database/password"
-      django_secret_key   = "/blawx/staging/django/secret-key"
-      django_debug        = "/blawx/staging/django/debug"
-      django_allowed_hosts = "/blawx/staging/django/allowed-hosts"
-      app_environment     = "/blawx/staging/app/environment"
-      log_level          = "/blawx/staging/app/log-level"
+    parameter_arns = {
+      database_password = "arn:aws:ssm:ca-central-1:278626299035:parameter/blawx/staging/database_password"
+      database_username = "arn:aws:ssm:ca-central-1:278626299035:parameter/blawx/staging/database_username"
+      database_name     = "arn:aws:ssm:ca-central-1:278626299035:parameter/blawx/staging/database_name"
+      django_secret_key = "arn:aws:ssm:ca-central-1:278626299035:parameter/blawx/staging/django_secret_key"
     }
+    parameter_names = {
+      database_password = "/blawx/staging/database_password"
+      database_username = "/blawx/staging/database_username"
+      database_name     = "/blawx/staging/database_name"
+      django_secret_key = "/blawx/staging/django_secret_key"
+    }
+    additional_parameter_arns = {}
+    additional_parameter_names = {}
   }
 }
 
@@ -121,6 +127,18 @@ inputs = {
     {
       name  = "DATABASE_USER"
       value = dependency.rds.outputs.rds_cluster_master_username
+    },
+    {
+      name  = "DEBUG"
+      value = "False"
+    },
+    {
+      name  = "ALLOWED_HOSTS"
+      value = "blawx.alpha.canada.ca,localhost"
+    },
+    {
+      name  = "LOG_LEVEL"
+      value = "INFO"
     }
   ]
   
@@ -133,18 +151,6 @@ inputs = {
     {
       name      = "DJANGO_SECRET_KEY"
       valueFrom = dependency.ssm.outputs.parameter_arns.django_secret_key
-    },
-    {
-      name      = "DEBUG"
-      valueFrom = dependency.ssm.outputs.parameter_arns.django_debug
-    },
-    {
-      name      = "ALLOWED_HOSTS"
-      valueFrom = dependency.ssm.outputs.parameter_arns.django_allowed_hosts
-    },
-    {
-      name      = "LOG_LEVEL"
-      valueFrom = dependency.ssm.outputs.parameter_arns.log_level
     }
   ]
   
@@ -172,5 +178,5 @@ inputs = {
   
   # Platform configuration
   platform_version = "LATEST"
-  cpu_architecture = "X86_64"
+  cpu_architecture = "ARM64"
 }
