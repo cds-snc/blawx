@@ -79,6 +79,18 @@ resource "aws_security_group_rule" "ecs_tasks_egress_all" {
   security_group_id = aws_security_group.ecs_tasks.id
 }
 
+# Security Group Rule: Allow outbound traffic to RDS on PostgreSQL port
+resource "aws_security_group_rule" "ecs_tasks_egress_rds" {
+  type                     = "egress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  source_security_group_id = var.proxy_security_group_id
+  description              = "Allow outbound traffic to RDS PostgreSQL"
+  security_group_id        = aws_security_group.ecs_tasks.id
+}
+
+
 module "ecs" {
   source = "github.com/cds-snc/terraform-modules//ecs?ref=v10.7.0"
 
@@ -136,7 +148,9 @@ module "ecs" {
   ]
 
   # Security & Management
-  enable_execute_command = var.enable_execute_command
+  enable_execute_command = var.env == "staging" ? true : false
+
+
 
   # Tags
   billing_tag_value = var.billing_tag_value
