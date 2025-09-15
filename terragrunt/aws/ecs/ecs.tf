@@ -1,5 +1,45 @@
 # ECS Module using CDS Terraform Modules
 
+# Locals
+locals {
+  # Container secrets will be passed from terragrunt configuration
+  container_secrets = var.container_secrets
+}
+
+
+# IAM Policy Document: Task Role - Application Runtime Permissions
+data "aws_iam_policy_document" "blawx_ecs_task_ssm_parameters_role" {
+  # Allow access to Systems Manager Parameter Store for configuration
+  statement {
+    effect = "Allow"
+    actions = [
+      "ssm:GetParameter",
+      "ssm:GetParameters",
+      "ssm:GetParametersByPath"
+    ]
+    resources = [
+      "arn:aws:ssm:${var.region}:${var.account_id}:parameter/blawx/${var.env}/*"
+    ]
+  }
+}
+
+
+# IAM Policy Document: Task Execution Role - SSM Parameter Store Access
+data "aws_iam_policy_document" "task_exec_ssm_role" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "ssm:GetParameter",
+      "ssm:GetParameters",
+      "ssm:GetParametersByPath"
+    ]
+    resources = [
+      "arn:aws:ssm:${var.region}:${var.account_id}:parameter/blawx/${var.env}/*"
+    ]
+  }
+}
+
+
 # Security Group for ECS Tasks
 resource "aws_security_group" "ecs_tasks" {
   name_prefix = "${var.product_name}-${var.env}-ecs-tasks-sg"
@@ -47,16 +87,28 @@ module "ecs" {
   service_name = "${var.product_name}-${var.env}-service"
 
   # Task Configuration
-  task_cpu      = var.task_cpu
-  task_memory   = var.task_memory
-  desired_count = var.desired_count
+  task_cpu                    = var.task_cpu
+  task_memory                 = var.task_memory
+  desired_count               = var.desired_count
+  service_use_latest_task_def = true
+
 
   # Container Configuration
-  container_image       = "${var.ecr_repository_url}:latest"
-  container_port        = var.container_port
-  container_host_port   = var.container_port
-  container_environment = var.container_environment
-  container_secrets     = var.container_secrets
+  container_image            = "${var.ecr_repository_url}:latest"
+  container_port             = var.container_port
+  container_host_port        = var.container_port
+  container_name             = "${var.product_name}-container"
+  container_environment      = var.container_environment
+  container_secrets          = local.container_secrets
+  container_linux_parameters = {}
+  container_ulimits = [
+    {
+      "hardLimit" : 1000000,
+      "name" : "nofile",
+      "softLimit" : 1000000
+    }
+  ]
+  container_read_only_root_filesystem = false
 
   # Networking
   subnet_ids         = var.private_subnet_ids
@@ -76,8 +128,12 @@ module "ecs" {
   ecs_scale_memory_threshold = var.ecs_scale_memory_threshold
 
   # IAM Roles
-  task_role_policy_documents      = var.task_role_policy_documents
-  task_exec_role_policy_documents = var.task_exec_role_policy_documents
+  task_role_policy_documents = [
+    data.aws_iam_policy_document.blawx_ecs_task_ssm_parameters_role.json,
+  ]
+  task_exec_role_policy_documents = [
+    data.aws_iam_policy_document.task_exec_ssm_role.json,
+  ]
 
   # Security & Management
   enable_execute_command = var.enable_execute_command
