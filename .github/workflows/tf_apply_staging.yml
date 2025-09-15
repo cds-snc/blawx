@@ -15,6 +15,9 @@ env:
   AWS_REGION: ca-central-1
   TERRAFORM_VERSION: 1.13.1
   TERRAGRUNT_VERSION: 0.87.0
+  TF_VAR_database_password: ${{ secrets.POSTGRES_PASSWORD }}
+  TF_VAR_database_username: ${{ secrets.POSTGRES_USER }}
+  TF_VAR_database_name: ${{ secrets.POSTGRES_DB }}
 
 permissions:
   id-token: write
@@ -56,6 +59,18 @@ jobs:
         working-directory: terragrunt/env/staging/vpc
         run: terragrunt apply --non-interactive -auto-approve
 
+      - name: Apply ssm
+        working-directory: terragrunt/env/staging/ssm
+        run: terragrunt apply --non-interactive -auto-approve
+
       - name: Apply alb
         working-directory: terragrunt/env/staging/alb
+        run: terragrunt apply --non-interactive -auto-approve
+
+      - name: Apply rds
+        working-directory: terragrunt/env/staging/rds
+        run: terragrunt apply --non-interactive -auto-approve
+
+      - name: Apply ecs
+        working-directory: terragrunt/env/staging/ecs
         run: terragrunt apply --non-interactive -auto-approve
