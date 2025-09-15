@@ -1,8 +1,8 @@
-# Production Dockerfile for Blawx Django Application
-FROM swipl:latest as prolog
+# Production Dockerfile for Blawx Django Application - ARM64 optimized
+FROM --platform=linux/arm64 swipl:latest as prolog
 
 # Multi-stage build for production Django application
-FROM python:3.10-slim as base
+FROM --platform=linux/arm64 python:3.11-slim as base
 
 # Set environment variables for production
 ENV PYTHONUNBUFFERED=1 \
@@ -11,7 +11,7 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies
+# Install system dependencies for ARM64
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
@@ -27,7 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libarchive-dev \
     libarchive13 \
     libtcmalloc-minimal4 \
-    libpcre2-dev \
+    libpcre3-dev \
     git \
     wget \
     unzip \
@@ -37,7 +37,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js for frontend dependencies
+# Install Node.js for ARM64
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
@@ -52,24 +52,10 @@ WORKDIR /app
 COPY blawx/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download and setup sCASP
-RUN wget https://github.com/SWI-Prolog/sCASP/archive/refs/heads/master.zip \
-    && unzip master.zip \
-    && mv sCASP-master sCASP \
-    && rm master.zip
-
 # Copy SWI-Prolog from base image
 COPY --from=prolog /usr/lib/swipl/ /usr/lib/swipl/
 COPY --from=prolog /usr/bin/swipl /usr/bin/swipl
 RUN chmod +x /usr/bin/swipl
-
-# Create necessary directories and install sCASP
-RUN mkdir -p /root/.local/share/swi-prolog/pack \
-    && cd sCASP \
-    && mkdir -p /root/.local/share/swi-prolog/pack/scasp \
-    && cp -r * /root/.local/share/swi-prolog/pack/scasp/ \
-    && cd /root/.local/share/swi-prolog/pack/scasp \
-    && swipl -g "make" -t halt
 
 # Create static directories
 RUN mkdir -p /app/blawx/static/blawx/blockly \
@@ -89,16 +75,11 @@ RUN cp -r node_modules/blockly/* /app/blawx/static/blawx/blockly/ \
     && cp node_modules/bootstrap-icons/font/fonts/bootstrap-icons.woff /app/blawx/static/blawx/fonts/ \
     && cp node_modules/bootstrap-icons/font/fonts/bootstrap-icons.woff2 /app/blawx/static/blawx/fonts/
 
-# Download Blockly storage.js
-RUN mkdir -p /app/blawx/static/blawx/blockly/appengine \
-    && curl -o /app/blawx/static/blawx/blockly/appengine/storage.js \
-    https://raw.githubusercontent.com/google/blockly/develop/appengine/storage.js
-
 # Clean up npm packages to reduce image size
 RUN rm -rf node_modules
 
 # Production stage
-FROM python:3.10-slim as production
+FROM --platform=linux/arm64 python:3.11-slim as production
 
 # Set production environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -106,7 +87,7 @@ ENV PYTHONUNBUFFERED=1 \
     DJANGO_SETTINGS_MODULE=blawx.settings_production \
     ENVIRONMENT=production
 
-# Install only runtime dependencies
+# Install only runtime dependencies for ARM64
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     libxml2 \
@@ -120,7 +101,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl3 \
     libarchive13 \
     libtcmalloc-minimal4 \
-    libpcre2-8-0 \
+    libpcre3 \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app user
@@ -130,33 +111,23 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 WORKDIR /app
 
 # Copy Python dependencies from base stage
-COPY --from=base /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
+COPY --from=base /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=base /usr/local/bin /usr/local/bin
 
 # Copy SWI-Prolog installation
 COPY --from=base /usr/lib/swipl/ /usr/lib/swipl/
 COPY --from=base /usr/bin/swipl /usr/bin/swipl
-COPY --from=base /root/.local/share/swi-prolog /root/.local/share/swi-prolog
-
-# Copy sCASP
-COPY --from=base /app/sCASP /app/sCASP
-
-# Create necessary directories
-RUN mkdir -p /app/static
-RUN mkdir -p /app/staticfiles
 
 # Copy static files
-COPY static/ /app/static/
+COPY --from=base /app/blawx/static /app/blawx/static
 
 # Copy application code
 COPY blawx/ /app/blawx/
 COPY manage.py /app/
 COPY load_data.py /app/
 
-# Run database migrations as root (before switching to appuser)
-RUN python manage.py makemigrations --noinput
-RUN python manage.py migrate --noinput
-RUN python manage.py collectstatic --noinput
+# Create staticfiles directory for collectstatic
+RUN mkdir -p /app/staticfiles
 
 # Set ownership to app user
 RUN chown -R appuser:appuser /app
