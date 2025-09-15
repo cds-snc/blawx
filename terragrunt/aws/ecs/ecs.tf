@@ -54,6 +54,7 @@ module "ecs" {
   # Container Configuration
   container_image       = "${var.ecr_repository_url}:latest"
   container_port        = var.container_port
+  container_host_port   = var.container_port
   container_environment = var.container_environment
   container_secrets     = var.container_secrets
 
