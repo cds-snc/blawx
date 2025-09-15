@@ -46,7 +46,7 @@ dependency "ecr" {
   mock_outputs_allowed_terraform_commands = ["init", "fmt", "validate", "plan", "show"]
   mock_outputs_merge_with_state           = true
   mock_outputs = {
-    repository_url = "123456789.dkr.ecr.ca-central-1.amazonaws.com/blawx-staging"
+    ecr_repository_url = "123456789.dkr.ecr.ca-central-1.amazonaws.com/blawx-staging"
   }
 }
 
@@ -57,10 +57,8 @@ dependency "rds" {
   mock_outputs_merge_with_state           = true
   mock_outputs = {
     rds_cluster_endpoint     = "blawx-staging-database.cluster-abc123.ca-central-1.rds.amazonaws.com"
-    rds_cluster_port         = "5432"
-    rds_cluster_database_name = "blawx_staging"
-    rds_cluster_master_username = "blawx_admin"
-    rds_security_group_id    = "sg-rds123456789"
+    rds_cluster_id           = "blawx-staging-database"
+    proxy_security_group_id  = "sg-rds123456789"
   }
 }
 
@@ -88,18 +86,13 @@ dependency "ssm" {
 }
 
 inputs = {
-  # Environment configuration
-  product_name      = local.env_vars.inputs.product_name
-  env              = local.env_vars.inputs.env
-  billing_tag_value = "blawx-${local.env_vars.inputs.env}"
-  
   # Task configuration
   task_cpu      = 512
   task_memory   = 1024
   desired_count = 1
   
   # Container configuration
-  ecr_repository_url = dependency.ecr.outputs.repository_url
+  ecr_repository_url = dependency.ecr.outputs.ecr_repository_url
   container_port     = 8000
   
   # Container environment variables
@@ -118,15 +111,7 @@ inputs = {
     },
     {
       name  = "DATABASE_PORT"
-      value = tostring(dependency.rds.outputs.rds_cluster_port)
-    },
-    {
-      name  = "DATABASE_NAME"
-      value = dependency.rds.outputs.rds_cluster_database_name
-    },
-    {
-      name  = "DATABASE_USER"
-      value = dependency.rds.outputs.rds_cluster_master_username
+      value = "5432" 
     },
     {
       name  = "DEBUG"
@@ -145,8 +130,16 @@ inputs = {
   # Container secrets (from SSM Parameter Store)
   container_secrets = [
     {
+      name     = "DATABASE_USER"
+      valueFrom = dependency.ssm.outputs.parameter_arns.database_username
+    },
+    {
       name      = "DATABASE_PASSWORD"
       valueFrom = dependency.ssm.outputs.parameter_arns.database_password
+    },
+    {
+      name      = "DATABASE_NAME"
+      valueFrom = dependency.ssm.outputs.parameter_arns.database_name
     },
     {
       name      = "DJANGO_SECRET_KEY"
@@ -158,7 +151,7 @@ inputs = {
   vpc_id                 = dependency.vpc.outputs.vpc_id
   private_subnet_ids     = dependency.vpc.outputs.private_subnet_ids
   alb_security_group_id  = dependency.alb.outputs.alb_security_group_id
-  rds_security_group_id  = dependency.rds.outputs.rds_security_group_id
+  proxy_security_group_id  = dependency.rds.outputs.proxy_security_group_id
   
   # Load balancer integration
   lb_target_group_arn = dependency.alb.outputs.target_group_arn
