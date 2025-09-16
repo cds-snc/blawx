@@ -131,7 +131,6 @@ RUN mkdir -p /app/staticfiles
 
 # Django setup and migrations (run as root before switching to appuser)
 ENV DJANGO_SETTINGS_MODULE=blawx.settings_production
-ENV ALLOWED_HOSTS=0.0.0.0,localhost,127.0.0.1
 
 WORKDIR /app
 
