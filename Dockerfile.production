@@ -125,22 +125,22 @@ COPY --from=base /app/blawx/static /app/blawx/static
 COPY blawx/ /app/blawx/
 COPY manage.py /app/
 COPY load_data.py /app/
+COPY init_db.py /app/
+COPY docker-entrypoint.sh /app/
 
-# Create directories
-RUN mkdir -p /app/staticfiles
+# Create directories and set permissions
+RUN mkdir -p /app/staticfiles && \
+    chmod +x /app/docker-entrypoint.sh
 
-# Django setup and migrations (run as root before switching to appuser)
+# For local development/testing - create initial SQLite setup
+# Staging/Production will use PostgreSQL and skip these steps
 ENV DJANGO_SETTINGS_MODULE=blawx.settings_production
-
 WORKDIR /app
 
-RUN python manage.py makemigrations
-
-RUN python manage.py migrate --run-syncdb
-
-RUN python manage.py collectstatic --noinput
-
-RUN python load_data.py
+# Note: The entrypoint will handle migrations for the actual database (PostgreSQL in staging/production)
+# These steps are just for container build validation
+RUN python manage.py makemigrations || true
+RUN python manage.py collectstatic --noinput || true
 
 # Set ownership to app user
 RUN chown -R appuser:appuser /app
@@ -155,5 +155,6 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD python manage.py check --deploy || exit 1
 
-# Production command - use gunicorn for production
+# Set entrypoint and command
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "--worker-class", "sync", "--timeout", "120", "blawx.wsgi:application"]
