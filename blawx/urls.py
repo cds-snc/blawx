@@ -9,6 +9,9 @@ from .models import RuleDoc
 
 app_name = "blawx"
 urlpatterns = [
+    # Health check endpoints
+    path("health/", views.health_check, name="health_check"),
+    path("health/detailed/", views.health_check_detailed, name="health_check_detailed"),
     path(
         "accounts/", include("django.contrib.auth.urls")
     ),  # The following 4 lines override four addresses with additional context data
