@@ -3,13 +3,22 @@ from django.contrib.auth.views import (LoginView, LogoutView,
                                        PasswordChangeDoneView,
                                        PasswordChangeView)
 from django.urls import include, path
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 
 from . import reasoner, simplifier, views
 from .models import RuleDoc
 
+# Simple health check for ALB (no app prefix)
+@csrf_exempt
+def simple_health_check(request):
+    return JsonResponse({"status": "healthy", "service": "blawx"})
+
 app_name = "blawx"
 urlpatterns = [
-    # Health check endpoints
+    # ALB Health check endpoint (no app prefix) 
+    path("health", simple_health_check, name="alb_health_check"),
+    # Detailed health check endpoints
     path("health/", views.health_check, name="health_check"),
     path("health/detailed/", views.health_check_detailed, name="health_check_detailed"),
     path(
@@ -22,7 +31,7 @@ urlpatterns = [
     ),
     path(
         "accounts/logout",
-        LogoutView.as_view(extra_context={"ruledoc_list": RuleDoc.objects.all()}),
+        views.CustomLogoutView.as_view(extra_context={"ruledoc_list": RuleDoc.objects.all()}),
         name="logout",
     ),
     path(

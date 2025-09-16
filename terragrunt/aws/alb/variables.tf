@@ -52,13 +52,13 @@ variable "health_check_matcher" {
 variable "health_check_interval" {
   description = "The health check interval in seconds"
   type        = number
-  default     = 30
+  default     = 120
 }
 
 variable "health_check_timeout" {
   description = "The health check timeout in seconds"
   type        = number
-  default     = 5
+  default     = 60
 }
 
 variable "health_check_healthy_threshold" {
@@ -70,5 +70,5 @@ variable "health_check_healthy_threshold" {
 variable "health_check_unhealthy_threshold" {
   description = "The number of consecutive failed health checks required"
   type        = number
-  default     = 3
+  default     = 5
 }
