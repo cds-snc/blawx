@@ -79,17 +79,6 @@ resource "aws_security_group_rule" "ecs_tasks_egress_all" {
   security_group_id = aws_security_group.ecs_tasks.id
 }
 
-# Security Group Rule: Allow outbound traffic to RDS on PostgreSQL port
-resource "aws_security_group_rule" "ecs_tasks_egress_rds" {
-  type                     = "egress"
-  from_port                = 5432
-  to_port                  = 5432
-  protocol                 = "tcp"
-  source_security_group_id = var.proxy_security_group_id
-  description              = "Allow outbound traffic to RDS PostgreSQL"
-  security_group_id        = aws_security_group.ecs_tasks.id
-}
-
 module "ecs" {
   source = "github.com/cds-snc/terraform-modules//ecs?ref=v10.7.0"
 
@@ -102,6 +91,7 @@ module "ecs" {
   task_memory                 = var.task_memory
   desired_count               = var.desired_count
   service_use_latest_task_def = true
+
 
   # Container Configuration
   container_image            = "${var.ecr_repository_url}:latest"
@@ -146,9 +136,14 @@ module "ecs" {
   ]
 
   # Security & Management
-  # Enabled to allow connection to DB only in staging
   enable_execute_command = var.env == "staging" ? true : false
+
+
 
   # Tags
   billing_tag_value = var.billing_tag_value
+
+  # Platform Configuration
+  platform_version = var.platform_version
+  cpu_architecture = var.cpu_architecture
 }
