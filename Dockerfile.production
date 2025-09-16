@@ -27,7 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libarchive-dev \
     libarchive13 \
     libtcmalloc-minimal4 \
-    libpcre3-dev \
+    libpcre2-dev \
     git \
     wget \
     unzip \
@@ -101,7 +101,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl3 \
     libarchive13 \
     libtcmalloc-minimal4 \
-    libpcre3 \
+    libpcre2-8-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app user
@@ -126,8 +126,24 @@ COPY blawx/ /app/blawx/
 COPY manage.py /app/
 COPY load_data.py /app/
 
-# Create staticfiles directory for collectstatic
+# Create directories
 RUN mkdir -p /app/staticfiles
+
+# Django setup and migrations (run as root before switching to appuser)
+ENV DJANGO_SETTINGS_MODULE=blawx.settings_production
+ENV ALLOWED_HOSTS=0.0.0.0,localhost,127.0.0.1
+
+WORKDIR /app
+
+RUN python manage.py makemigrations
+
+RUN python manage.py migrate --run-syncdb
+
+RUN python manage.py collectstatic --noinput
+
+#RUN python manage.py createsuperuser --noinput --username admin --email admin@admin.com
+
+RUN python load_data.py
 
 # Set ownership to app user
 RUN chown -R appuser:appuser /app

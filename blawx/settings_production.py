@@ -34,9 +34,28 @@ if os.environ.get('DATABASE_HOST'):
         }
     }
 
+# WhiteNoise middleware for serving static files
+MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
+    "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # Add WhiteNoise after SecurityMiddleware
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+]
+
 # Static files configuration for production
 STATIC_ROOT = '/app/staticfiles'
 STATIC_URL = '/static/'
+
+# Don't include the static directory in STATICFILES_DIRS if it's inside the app
+STATICFILES_DIRS = ['/app/static']  # Only include the root static directory
+
+# WhiteNoise configuration
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Security settings for production
 SECURE_BROWSER_XSS_FILTER = True

@@ -11,3 +11,4 @@ aiohttp >= 3.9.0b0
 openai
 psycopg2-binary
 gunicorn
+whitenoise
