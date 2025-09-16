@@ -7,15 +7,19 @@ import os
 
 from .settings import *
 
+# Version for health checks
+VERSION = "1.6.16-alpha"
+
 # Production security settings
 DEBUG = False
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', SECRET_KEY)
 
 # Security: Only allow specific hosts in production
-ALLOWED_HOSTS = [
-    host.strip() for host in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
-    if host.strip()
-]
+ALLOWED_HOSTS = ["*"]
+# Commenting out for now to allow all hosts just for testing purposes and will be adjusted. 
+#     host.strip() for host in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,blawx.cdssandbox.xyz', '10.0.1.246:8000','10.0.0.167:8000' ).split(',')
+#     if host.strip()
+# ]
 
 # Database configuration for production
 # Use PostgreSQL in production with environment variables
@@ -23,14 +27,24 @@ if os.environ.get('DATABASE_HOST'):
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.environ.get('POSTGRES_DB'),
-            'USER': os.environ.get('POSTGRES_USER'),
-            'PASSWORD': os.environ.get('POSTGRES_PASSWORD'),
-            'HOST': os.environ.get('DB_HOST'),
-            'PORT':'5432',
+            'NAME': os.environ.get('DATABASE_NAME'),
+            'USER': os.environ.get('DATABASE_USER'),
+            'PASSWORD': os.environ.get('DATABASE_PASSWORD'),
+            'HOST': os.environ.get('DATABASE_HOST'),
+            'PORT': os.environ.get('DATABASE_PORT', '5432'),
             'OPTIONS': {
                 'sslmode': 'require',
+                'connect_timeout': 30,
+                'application_name': f'blawx-{os.environ.get("ENV", "production")}',
             },
+        }
+    }
+else:
+    # Fallback to SQLite if no PostgreSQL configuration is provided
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': '/app/db.sqlite3',
         }
     }
 

@@ -119,7 +119,7 @@ inputs = {
     },
     {
       name  = "ALLOWED_HOSTS"
-      value = "blawx.alpha.canada.ca,localhost"
+      value = "blawx.cdssandbox.xyz,localhost,127.0.0.1,0.0.0.0"
     },
     {
       name  = "LOG_LEVEL"

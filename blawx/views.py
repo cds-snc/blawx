@@ -42,6 +42,61 @@ from .serializers import (CodeUpdateRequestSerializer,
 
 # Create your views here.
 
+def health_check(request):
+    """
+    Basic health check endpoint for load balancer.
+    Always returns HTTP 200 if the Django service is running.
+    """
+    from django.http import JsonResponse
+    
+    response_data = {
+        "status": "healthy",
+        "service": "blawx",
+        "version": getattr(settings, 'VERSION', 'unknown')
+    }
+    
+    return JsonResponse(response_data, status=200)
+
+
+def health_check_detailed(request):
+    """
+    Detailed health check endpoint that includes database connectivity.
+    Use this for monitoring, not for load balancer health checks.
+    """
+    from django.http import JsonResponse
+    from django.db import connection
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    # Check database connectivity
+    db_status = "unknown"
+    db_error = None
+    
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+        db_status = "healthy"
+        logger.info("Detailed health check: Database connection successful")
+    except Exception as e:
+        db_status = "unhealthy"
+        db_error = str(e)
+        logger.warning(f"Detailed health check: Database connection failed: {e}")
+    
+    response_data = {
+        "status": "healthy" if db_status == "healthy" else "degraded",
+        "service": "blawx",
+        "database": db_status,
+        "version": getattr(settings, 'VERSION', 'unknown')
+    }
+    
+    # Add database error details if available (for debugging)
+    if db_error:
+        response_data["database_error"] = db_error
+    
+    # Return 200 for service availability, even if database has issues
+    return JsonResponse(response_data, status=200)
+
 
 def register_request(request):
     allow_registration = preferences.BlawxPreference.allow_registration

@@ -112,7 +112,7 @@ module "ecs" {
 
   # Networking
   subnet_ids         = var.private_subnet_ids
-  security_group_ids = [aws_security_group.ecs_tasks.id]
+  security_group_ids = [aws_security_group.ecs_tasks.id, var.proxy_security_group_id]
 
   # Load Balancer Integration
   lb_target_group_arn = var.lb_target_group_arn
