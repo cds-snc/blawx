@@ -140,8 +140,6 @@ RUN python manage.py migrate --run-syncdb
 
 RUN python manage.py collectstatic --noinput
 
-#RUN python manage.py createsuperuser --noinput --username admin --email admin@admin.com
-
 RUN python load_data.py
 
 # Set ownership to app user
