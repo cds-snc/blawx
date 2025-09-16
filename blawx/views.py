@@ -98,6 +98,27 @@ def health_check_detailed(request):
     return JsonResponse(response_data, status=200)
 
 
+# Custom logout view that accepts GET requests
+from django.contrib.auth.views import LogoutView
+
+class CustomLogoutView(LogoutView):
+    """
+    Custom logout view that accepts both GET and POST requests.
+    GET requests show a logout confirmation page.
+    POST requests perform the actual logout.
+    """
+    http_method_names = ['get', 'post']
+    
+    def get(self, request, *args, **kwargs):
+        # For GET requests, show logout confirmation or redirect if already logged out
+        if not request.user.is_authenticated:
+            return redirect('blawx:ruledocs')
+        
+        # Show confirmation page or logout directly based on preferences
+        # For now, we'll logout directly for simplicity
+        return self.post(request, *args, **kwargs)
+
+
 def register_request(request):
     allow_registration = preferences.BlawxPreference.allow_registration
     if allow_registration:

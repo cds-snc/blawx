@@ -79,9 +79,22 @@ SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 
-# Use secure cookies in production
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+# Use secure cookies in production (only if running with HTTPS)
+# For ALB with SSL termination, these should be False as the container runs HTTP
+USE_TLS = os.environ.get('USE_TLS', 'false').lower() == 'true'
+SESSION_COOKIE_SECURE = USE_TLS
+CSRF_COOKIE_SECURE = USE_TLS
+
+# CSRF settings for ALB/proxy setup
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip() for origin in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',')
+    if origin.strip()
+]
+
+# If running behind a proxy, trust proxy headers
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # CORS settings for production
 CORS_ALLOW_CREDENTIALS = True
