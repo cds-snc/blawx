@@ -41,9 +41,33 @@ class RuleDoc(models.Model):
 
 @receiver(pre_save, sender=RuleDoc)
 def update_an_nav(sender, instance, **kwargs):
-    instance.akoma_ntoso = generate_akn(instance.rule_text)
-    instance.navtree = generate_tree(Act(instance.akoma_ntoso).act)
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Ensure rule_slug is always set
     instance.rule_slug = slugify(instance.ruledoc_name)
+    
+    # Skip processing if rule_text is empty or invalid
+    if not instance.rule_text or not instance.rule_text.strip():
+        logger.info(f"Skipping Akoma Ntoso generation for RuleDoc '{instance.ruledoc_name}': empty rule_text")
+        instance.akoma_ntoso = ""
+        instance.navtree = "{}"
+        return
+    
+    try:
+        # Attempt to generate Akoma Ntoso
+        instance.akoma_ntoso = generate_akn(instance.rule_text)
+        instance.navtree = generate_tree(Act(instance.akoma_ntoso).act)
+        logger.info(f"Successfully generated Akoma Ntoso for RuleDoc '{instance.ruledoc_name}'")
+        
+    except Exception as e:
+        # Log the parsing error but don't fail the save operation
+        logger.warning(f"Failed to generate Akoma Ntoso for RuleDoc '{instance.ruledoc_name}': {e}")
+        logger.warning(f"Rule text that failed to parse: '{instance.rule_text[:100]}...'")
+        
+        # Set default values when parsing fails
+        instance.akoma_ntoso = ""
+        instance.navtree = "{}"
 
 
 class Workspace(models.Model):

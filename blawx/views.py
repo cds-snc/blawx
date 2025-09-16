@@ -14,6 +14,7 @@ from django.core import serializers
 from django.http import (FileResponse, HttpResponse, HttpResponseForbidden,
                          HttpResponseNotAllowed, HttpResponseNotFound,
                          HttpResponseRedirect)
+from django.db import IntegrityError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.views import generic
@@ -237,28 +238,35 @@ def ruleDocImportView(request):
     if request.method == "POST":
 
         if request.user.has_perm("blawx.add_ruledoc"):
+            try:
+                # The request should include a file.
+                upload = request.FILES["loadfile"]
 
-            # The request should include a file.
-            upload = request.FILES["loadfile"]
+                # Deserialize the contents of the file.
+                new_objects = serializers.deserialize("yaml", upload.read())
 
-            # Deserialize the contents of the file.
-            new_objects = serializers.deserialize("yaml", upload.read())
+                new_object_list = list(new_objects)
+                # Get the RuleDoc, remove the PK, save it, and get the PK of the saved version.
+                new_object_list[0].object.pk = None
+                new_object_list[0].object.owner = request.user
+                new_object_list[0].object.save()
 
-            new_object_list = list(new_objects)
-            # Get the RuleDoc, remove the PK, save it, and get the PK of the saved version.
-            new_object_list[0].object.pk = None
-            new_object_list[0].object.owner = request.user
-            new_object_list[0].object.save()
-
-            # Use the PK of the saved version to save the workspaces and tests
-            for o in new_object_list[1:]:
-                o.object.pk = None
-                o.object.ruledoc = new_object_list[0].object
-                o.object.save()
-            # Now trigger the post-save for the RuleDoc object to set permissions on sub-objects.
-            new_object_list[0].object.save()
-            # Send the user back to root.
-            return HttpResponseRedirect("/")
+                # Use the PK of the saved version to save the workspaces and tests
+                for o in new_object_list[1:]:
+                    o.object.pk = None
+                    o.object.ruledoc = new_object_list[0].object
+                    o.object.save()
+                # Now trigger the post-save for the RuleDoc object to set permissions on sub-objects.
+                new_object_list[0].object.save()
+                # Send the user back to root.
+                return HttpResponseRedirect("/")
+            except IntegrityError as e:
+                # Handle duplicate project error with user-friendly message
+                if "unique_owner_and_rule_slug" in str(e):
+                    messages.error(request, "You already have a project with this name. Please rename your existing project or use a different name for the imported project.")
+                else:
+                    messages.error(request, "Unable to import project due to a data conflict. Please check that the project name doesn't already exist and try again.")
+                return HttpResponseRedirect("/")
         else:
             return HttpResponseForbidden()
     else:
@@ -304,6 +312,13 @@ def exampleLoadView(request, example_name):
                 return HttpResponseRedirect("/")
         except FileNotFoundError:
             return HttpResponseNotFound(f"Example file {example_name}.yaml not found")
+        except IntegrityError as e:
+            # Handle duplicate project error with user-friendly message
+            if "unique_owner_and_rule_slug" in str(e):
+                messages.error(request, f"You already have a project with this name. Please delete the existing '{example_name.replace('-', ' ').title()}' project from your list before loading this example again.")
+            else:
+                messages.error(request, "Unable to load example due to a data conflict. Please try again or contact support if the problem persists.")
+            return HttpResponseRedirect("/")
     else:
         return HttpResponseForbidden()
 
