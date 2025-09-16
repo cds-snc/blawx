@@ -133,11 +133,11 @@ RUN mkdir -p /app/staticfiles && \
     chmod +x /app/docker-entrypoint.sh
 
 # For local development/testing - create initial SQLite setup
-# Production will use PostgreSQL and skip these steps
+# Staging/Production will use PostgreSQL and skip these steps
 ENV DJANGO_SETTINGS_MODULE=blawx.settings_production
 WORKDIR /app
 
-# Note: The entrypoint will handle migrations for the actual database (PostgreSQL in production)
+# Note: The entrypoint will handle migrations for the actual database (PostgreSQL in staging/production)
 # These steps are just for container build validation
 RUN python manage.py makemigrations || true
 RUN python manage.py collectstatic --noinput || true

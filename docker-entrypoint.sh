@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Starting Blawx Production Container..."
+echo "🚀 Starting Blawx Staging/Production Container..."
 
 # Run database initialization
 echo "🔄 Initializing database..."
