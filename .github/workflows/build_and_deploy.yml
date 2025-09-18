@@ -10,13 +10,11 @@ on:
       - "*.md"
 
 env:
-  GITHUB_SHA: ${{ github.sha }}
-  AWS_ACCOUNT_ID: 278626299035 
   AWS_REGION: ca-central-1
-  ECR_REGISTRY: 278626299035.dkr.ecr.ca-central-1.amazonaws.com
-  ECR_REPOSITORY: blawx-staging
+  REGISTRY: ${{ vars.STAGING_AWS_ACCOUNT_ID }}.dkr.ecr.ca-central-1.amazonaws.com/blawx-staging
   ECS_CLUSTER: blawx-staging-cluster
   ECS_SERVICE: blawx-staging-service
+  IMAGE_TAG_LATEST: latest
 
 permissions:
   id-token: write
@@ -44,34 +42,27 @@ jobs:
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/blawx-apply
+          role-to-assume: arn:aws:iam::${{ vars.STAGING_AWS_ACCOUNT_ID }}:role/blawx-apply
           role-session-name: BlawxECRPush
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Get current date and time
-        id: date
-        run: echo "date=$(date +'%Y-%m-%d-%H:%M:%S')" >> $GITHUB_OUTPUT
 
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
-      - name: Build, tag, and push Docker image
-        env:
-          REGISTRY: ${{ env.ECR_REGISTRY }}
-          REPOSITORY: ${{ env.ECR_REPOSITORY }}
-          IMAGE_TAG_LATEST: latest
+      - name: Build and tag Docker image 
         run: |
-          # Build the Docker image
+          # Build the Docker image for ARM64
           docker build \
-            -t $REGISTRY/$REPOSITORY:$IMAGE_TAG_LATEST \
-            --build-arg GIT_SHA=$GITHUB_SHA \
-            --build-arg BUILD_DATE=${{ steps.date.outputs.date }} \
-            --platform linux/amd64 \
+            -t $REGISTRY:${{ env.IMAGE_TAG_LATEST }} \
+            --platform linux/armd64 \
             -f Dockerfile.production \
             .
-          
-          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG_LATEST
+
+      - name: Push Container to Amazon ECR
+        run: |
+          # Push latest version
+          docker push $REGISTRY:${{ env.IMAGE_TAG_LATEST }}
 
       - name: Update ECS service with new image
         run: |
@@ -120,9 +111,9 @@ jobs:
       - name: Generate Security SBOM
         uses: cds-snc/security-tools/.github/actions/generate-sbom@eecd7a02a0294b379411c126b61e5c29e253676a # v2.1.4
         with:
-          docker_image: "${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest"
+          docker_image: "${{ env.REGISTRY }}:latest"
           dockerfile_path: "Dockerfile.production"
-          platform: "linux/amd64"
+          platform: "linux/arm64"
           sbom_name: "blawx"
           token: "${{ secrets.GITHUB_TOKEN }}"
 
