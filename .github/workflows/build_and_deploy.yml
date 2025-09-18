@@ -50,12 +50,12 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
-      - name: Build and tag Docker image 
+      - name: Build and tag Docker image
         run: |
           # Build the Docker image for ARM64
           docker build \
             -t $REGISTRY:${{ env.IMAGE_TAG_LATEST }} \
-            --platform linux/armd64 \
+            --platform linux/arm64 \
             -f Dockerfile.production \
             .
 
@@ -72,7 +72,7 @@ jobs:
             --service ${{ env.ECS_SERVICE }} \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
-          
+
           echo "ECS service update initiated. New deployment will pull the latest image."
 
       - name: Wait for deployment to stabilize
@@ -82,7 +82,7 @@ jobs:
             --cluster ${{ env.ECS_CLUSTER }} \
             --services ${{ env.ECS_SERVICE }} \
             --region ${{ env.AWS_REGION }}
-          
+
           echo "ECS service has stabilized successfully!"
 
       - name: Get service status
@@ -92,14 +92,14 @@ jobs:
             --cluster ${{ env.ECS_CLUSTER }} \
             --services ${{ env.ECS_SERVICE }} \
             --region ${{ env.AWS_REGION }})
-          
+
           RUNNING_COUNT=$(echo $SERVICE_INFO | jq -r '.services[0].runningCount')
           DESIRED_COUNT=$(echo $SERVICE_INFO | jq -r '.services[0].desiredCount')
-          
+
           echo "Service Status:"
           echo "  Running Tasks: $RUNNING_COUNT"
           echo "  Desired Tasks: $DESIRED_COUNT"
-          
+
           # Check if deployment was successful
           if [ "$RUNNING_COUNT" -eq "$DESIRED_COUNT" ] && [ "$RUNNING_COUNT" -gt "0" ]; then
             echo "✅ Deployment successful! Service is running with $RUNNING_COUNT tasks."
