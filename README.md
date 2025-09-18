@@ -74,6 +74,83 @@ by clicking "Help" in the left navigation menu. You can also view the [documenta
 
 No. Blawx is functional, but it is not production-quality software. It is intended for educational and experimental purposes.
 
+## Running Blawx Locally for Development
+
+### Option 1: GitHub Codespaces (Recommended)
+
+The easiest way to run Blawx for development is using GitHub Codespaces:
+
+1. **Create a Codespace in VS Code:**
+   - Install the [GitHub Codespaces extension](https://marketplace.visualstudio.com/items?itemName=GitHub.codespaces) in VS Code
+   - Open VS Code and press `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac) to open the Command Palette
+   - Type "Codespaces: Create New Codespace" and select it
+   - Choose the repository: `cds-snc/blawx`
+   - Select your desired branch (typically `main`)
+   - Choose machine type (2-core is sufficient for development)
+   - VS Code will automatically connect to your new codespace
+
+2. **Set up the development environment:**
+   ```bash
+   make setup
+   ```
+   This command will:
+   - Install Python dependencies
+   - Create necessary directories
+   - Install npm dependencies
+   - Download static files (Blockly, Bootstrap, etc.)
+   - Run database migrations
+   - Load initial data
+   - Collect static files
+
+3. **Run the development server:**
+   ```bash
+   make run
+   ```
+   The application will be available at `http://localhost:8000`
+
+### Option 2: Local Development
+
+If you prefer to run Blawx on your local machine:
+
+1. **Prerequisites:**
+   - Python 3.8+
+   - Node.js 14+
+   - SWI-Prolog
+   - PostgreSQL development libraries (for psycopg2)
+     - **macOS:** `brew install postgresql`
+     - **Ubuntu/Debian:** `sudo apt-get install postgresql-dev libpq-dev python3-dev`
+     - **CentOS/RHEL:** `sudo yum install postgresql-devel python3-devel`
+   - Git
+
+2. **Clone and setup:**
+   ```bash
+   git clone https://github.com/cds-snc/blawx.git
+   cd blawx
+   make setup
+   ```
+
+3. **Run the development server:**
+   ```bash
+   make run
+   ```
+
+### Additional Make Commands
+
+- `make help` - Show all available commands
+- `make migrate` - Run database migrations
+- `make load-data` - Load initial test data
+- `make test` - Run the test suite
+- `make lint` - Run code linting
+- `make clean` - Clean up temporary files
+
+### Development Notes
+
+- The development server runs on `http://localhost:8000`
+- Admin interface is available at `http://localhost:8000/admin/`
+- The application uses SQLite by default for development
+- Static files are served from the `static/` directory
+- The Codespace environment includes all necessary dependencies pre-installed
+
 ## Contributions
 
 If you have issues or concerns with the package, please open an Issue in the [GitHub Repository](https://github.com/Lexpedite/blawx).
