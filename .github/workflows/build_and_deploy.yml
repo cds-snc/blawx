@@ -27,7 +27,7 @@ permissions:
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm64
     steps:
       - name: Audit DNS requests
         uses: cds-snc/dns-proxy-action@50d3033adea55c246f2e314920759cd81ecae522
@@ -52,10 +52,10 @@ jobs:
 
       - name: Build and tag Docker image
         run: |
-          # Build the Docker image for ARM64
+          # Build the Docker image for AMD64 (GitHub Actions runners)
           docker build \
             -t $REGISTRY:${{ env.IMAGE_TAG_LATEST }} \
-            --platform linux/arm64 \
+            --platform linux/amd64 \
             -f Dockerfile.production \
             .
 
