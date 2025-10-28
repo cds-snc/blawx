@@ -1,0 +1,21 @@
+name: Test AWS Read-Only Role to list available EC2 regions
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-readonly:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_READONLY_PLAN_ROLE_ARN}}
+          role-session-name: TFPlan
+          aws-region: ca-central-1
+
+      - name: Test Read-Only Role 
+        run: aws ec2 describe-regions --output text > /dev/null
