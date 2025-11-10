@@ -119,6 +119,11 @@ resource "aws_lb_target_group" "blawx_app" {
     unhealthy_threshold = var.health_check_unhealthy_threshold
   }
 
+  stickiness {
+    type            = "lb_cookie"
+    cookie_duration = 43200 # 12 hours
+  }
+
   tags = {
     Name       = "${var.product_name}-${var.env}-app-target-group"
     CostCentre = var.billing_tag_value
