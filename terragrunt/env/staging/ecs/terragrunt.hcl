@@ -87,8 +87,8 @@ dependency "ssm" {
 
 inputs = {
   # Task configuration
-  task_cpu      = 512
-  task_memory   = 1024
+  task_cpu      = 4096
+  task_memory   = 8192
   desired_count = 1
   
   # Container configuration

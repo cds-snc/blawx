@@ -7,7 +7,7 @@ module "blawx_rds_cluster" {
 
   database_name  = var.database_name
   engine         = "aurora-postgresql"
-  engine_version = "15.4"
+  engine_version = "15.12"
   instance_class = "db.t4g.medium"
   instances      = var.database_instances_count
   username       = var.database_username
