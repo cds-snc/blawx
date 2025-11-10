@@ -40,7 +40,7 @@ variable "ssl_policy" {
 variable "health_check_path" {
   description = "The path for health checks"
   type        = string
-  default     = "/health"
+  default     = "/"
 }
 
 variable "health_check_matcher" {
