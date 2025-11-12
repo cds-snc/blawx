@@ -171,5 +171,5 @@ inputs = {
   
   # Platform configuration
   platform_version = "LATEST"
-  cpu_architecture = "ARM64"
+  cpu_architecture = "X86_64"
 }
