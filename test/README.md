@@ -15,6 +15,5 @@ cp .env.example .env
 ## Running tests
 
 ```sh
-export $(cat .env | xargs -0)
-k6 run load-test.js
+make test
 ```
