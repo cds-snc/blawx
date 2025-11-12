@@ -98,6 +98,10 @@ inputs = {
   # Container environment variables
   container_environment = [
     {
+      name  = "DJANGO_CSRF_TRUSTED_ORIGINS"
+      value = "https://blawx.cdssandbox.xyz"
+    },
+    {
       name  = "ENVIRONMENT"
       value = local.env_vars.inputs.env
     },
