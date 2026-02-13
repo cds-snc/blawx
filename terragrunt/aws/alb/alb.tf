@@ -167,3 +167,36 @@ resource "aws_route53_record" "blawx_app" {
     evaluate_target_health = true
   }
 }
+
+# Serve security.txt as a fixed response from the ALB
+resource "aws_alb_listener_rule" "security_txt" {
+  listener_arn = aws_lb_listener.blawx_https_listener.arn
+  priority     = 1
+
+  action {
+    type = "fixed-response"
+
+    fixed_response {
+      content_type = "text/plain"
+      message_body = <<-EOT
+        Contact: mailto:ZZTBSCYBERS@tbs-sct.gc.ca
+        Contact: https://hackerone.com/tbs-sct/
+        Canonical: https://cdssandbox.xyz/.well-known/security.txt
+        Expires: 2026-03-02T12:00:00.000Z
+        Preferred-Languages: en, fr
+      EOT
+      status_code  = "200"
+    }
+  }
+
+  condition {
+    path_pattern {
+      values = ["/.well-known/security.txt"]
+    }
+  }
+  tags = {
+    Name       = "${var.product_name}-${var.env}-app-target-group"
+    CostCentre = var.billing_tag_value
+    Terraform  = true
+  }
+}
