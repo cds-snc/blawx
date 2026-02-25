@@ -1,0 +1,3 @@
+FROM lexpedite/blawx:latest@sha256:d217a1578ef6902f7421d50b520324ca42a94af765e1dade9407d3c847d1d96f
+
+COPY ./blawx/settings.py /app/blawx/blawx/settings.py
