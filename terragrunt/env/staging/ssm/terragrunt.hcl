@@ -16,9 +16,6 @@ inputs = {
   database_username = "blawx_admin"  # Should match RDS configuration
   database_name     = "blawx_${local.env_vars.inputs.env}"  # Should match RDS database_name
 
-  # Django configuration
-  django_secret_key     = "CHANGE_ME_IN_PRODUCTION_USE_ENV_VAR"  # Set via: export TF_VAR_django_secret_key="your-django-secret"
-
   # Additional environment-specific parameters
   additional_parameters = {
     "cache-timeout" = {
